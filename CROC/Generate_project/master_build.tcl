@@ -22,10 +22,13 @@ set part_num "xcau15p-ffvb676-2-i"
 
 create_project -force croc_aging $build_dir -part $part_num
 
-# 3. Chamar o script de fontes
+# 3. Chamar o script de fontes (RTL)
 source "$gen_proj_dir/source_list.tcl"
 
-# 4. Configurações de Defines Globais (Unificados)
+# 4. Chamar o script de IPs e Memória (NOVO)
+source "$gen_proj_dir/setup_ips_and_mem.tcl"
+
+# 5. Configurações de Defines Globais (Unificados)
 set global_defines [list \
     TARGET_FPGA \
     TARGET_AUP15 \

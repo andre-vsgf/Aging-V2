@@ -17,7 +17,6 @@ puts "-------------------------------------------------------"
 # Liste aqui as pastas principais onde estão seus .sv, .v e .svh
 # Ajuste conforme sua estrutura de pastas real (ex: rtl, rtl_sensors)
 set rtl_dirs [list \
-    "$repo_root/rtl" \
     "$repo_root/rtl_sensors" \
 ]
 
@@ -42,8 +41,7 @@ set include_paths [list \
     "$repo_root/rtl_sensors/common_cells/include" \
     "$repo_root/rtl_sensors/cve2/include" \
     "$repo_root/rtl_sensors/obi/include" \
-    "$repo_root/rtl_sensors/register_interface/include" \
-    "$repo_root/rtl/include" \
+    "$repo_root/rtl_sensors/register_interface/include"
 ]
 
 # Filtra apenas caminhos que existem para evitar warnings

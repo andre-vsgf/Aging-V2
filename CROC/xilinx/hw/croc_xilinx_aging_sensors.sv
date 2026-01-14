@@ -67,7 +67,7 @@ module croc_xilinx import croc_pkg::*; #(
   assign psclk_obi_dmx_i = psclk_rf_i;
   assign psclk_uart_i = psclk_rf_i;
 
-  clk_wiz i_clkwiz (
+  clk_wiz i_clk_wiz (
     .clk_in1_p   ( sys_clk_p     ),
     .clk_in1_n   ( sys_clk_n     ),
     .reset       ( 1'b0          ),
