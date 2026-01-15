@@ -18,7 +18,7 @@ module telemetry_tx_4sensor
   // Sensor width parameters (auto-calculated from croc_pkg if not overridden)
   parameter int ALARM_F_WIDTH  = 32,
   parameter int ALARM_RF_WIDTH = 32,
-  parameter int ALARM_DM_WIDTH = 32,
+  parameter int ALARM_UART_WIDTH = 32,
   parameter int ALARM_OBI_WIDTH = 32  // Default, can be overridden
 ) (
   input  logic        clk_i,
@@ -34,7 +34,7 @@ module telemetry_tx_4sensor
   // Aging sensor inputs - VARIABLE WIDTH
   input  logic [ALARM_F_WIDTH-1:0]   alarm_f_i,
   input  logic [ALARM_RF_WIDTH-1:0]  alarm_rf_i,
-  input  logic [ALARM_DM_WIDTH-1:0]  alarm_dm_i,
+  input  logic [ALARM_UART_WIDTH-1:0]  alarm_uart_i,
   input  logic [ALARM_OBI_WIDTH-1:0] alarm_obi_dmx_i,
   
   // UART TX interface
@@ -59,9 +59,9 @@ module telemetry_tx_4sensor
   function automatic logic [31:0] extend_to_32(
     input logic [ALARM_F_WIDTH-1:0] val_f,
     input logic [ALARM_RF_WIDTH-1:0] val_rf,
-    input logic [ALARM_DM_WIDTH-1:0] val_dm,
+    input logic [ALARM_UART_WIDTH-1:0] val_uart,
     input logic [ALARM_OBI_WIDTH-1:0] val_obi,
-    input int selector  // 0=F, 1=RF, 2=DM, 3=OBI
+    input int selector  // 0=F, 1=RF, 2=UART, 3=OBI
   );
     logic [31:0] result;
     result = 32'h0;
@@ -81,11 +81,11 @@ module telemetry_tx_4sensor
           result = val_rf[31:0];
       end
       
-      2: begin  // ALARM_DM
-        if (ALARM_DM_WIDTH <= 32)
-          result[ALARM_DM_WIDTH-1:0] = val_dm;
+      2: begin  // ALARM_UART
+        if (ALARM_UART_WIDTH <= 32)
+          result[ALARM_UART_WIDTH-1:0] = val_uart;
         else
-          result = val_dm[31:0];
+          result = val_uart[31:0];
       end
       
       3: begin  // ALARM_OBI
@@ -134,7 +134,7 @@ module telemetry_tx_4sensor
   logic [15:0] cap_vccint_q;
   logic [31:0] cap_alarm_f_q;
   logic [31:0] cap_alarm_rf_q;
-  logic [31:0] cap_alarm_dm_q;
+  logic [31:0] cap_alarm_uart_q;
   logic [31:0] cap_alarm_obi_q;
   
   // UART TX state
@@ -210,12 +210,12 @@ module telemetry_tx_4sensor
     end
     msg_buf[build_idx] = ","; build_idx++;
     
-    // "AD,XXXXXXXX," (DM sensor)
+    // "AD,XXXXXXXX," (UART sensor)
     msg_buf[build_idx] = "A"; build_idx++;
     msg_buf[build_idx] = "D"; build_idx++;
     msg_buf[build_idx] = ","; build_idx++;
     for (int i = 7; i >= 0; i--) begin
-      msg_buf[build_idx] = nibble_to_hex(cap_alarm_dm_q[i*4 +: 4]);
+      msg_buf[build_idx] = nibble_to_hex(cap_alarm_uart_q[i*4 +: 4]);
       build_idx++;
     end
     msg_buf[build_idx] = ","; build_idx++;
@@ -260,7 +260,7 @@ module telemetry_tx_4sensor
       cap_vccint_q   <= '0;
       cap_alarm_f_q  <= '0;
       cap_alarm_rf_q <= '0;
-      cap_alarm_dm_q <= '0;
+      cap_alarm_uart_q <= '0;
       cap_alarm_obi_q<= '0;
       
       for (int i = 0; i < MAX_MSG_LEN; i++)
@@ -285,10 +285,10 @@ module telemetry_tx_4sensor
           // Capture and normalize to 32-bit
           cap_temp_q     <= fpga_temp_i;
           cap_vccint_q   <= vccint_i;
-          cap_alarm_f_q  <= extend_to_32(alarm_f_i, alarm_rf_i, alarm_dm_i, alarm_obi_dmx_i, 0);
-          cap_alarm_rf_q <= extend_to_32(alarm_f_i, alarm_rf_i, alarm_dm_i, alarm_obi_dmx_i, 1);
-          cap_alarm_dm_q <= extend_to_32(alarm_f_i, alarm_rf_i, alarm_dm_i, alarm_obi_dmx_i, 2);
-          cap_alarm_obi_q<= extend_to_32(alarm_f_i, alarm_rf_i, alarm_dm_i, alarm_obi_dmx_i, 3);
+          cap_alarm_f_q  <= extend_to_32(alarm_f_i, alarm_rf_i, alarm_uart_i, alarm_obi_dmx_i, 0);
+          cap_alarm_rf_q <= extend_to_32(alarm_f_i, alarm_rf_i, alarm_uart_i, alarm_obi_dmx_i, 1);
+          cap_alarm_uart_q <= extend_to_32(alarm_f_i, alarm_rf_i, alarm_uart_i, alarm_obi_dmx_i, 2);
+          cap_alarm_obi_q<= extend_to_32(alarm_f_i, alarm_rf_i, alarm_uart_i, alarm_obi_dmx_i, 3);
           state_q <= ST_BUILD_MSG;
         end
         
@@ -376,7 +376,7 @@ endmodule
 //   .TX_INTERVAL_MS  ( 500       ),
 //   .ALARM_F_WIDTH   ( 32        ),
 //   .ALARM_RF_WIDTH  ( 32        ),
-//   .ALARM_DM_WIDTH  ( 32        ),
+//   .ALARM_UART_WIDTH  ( 32        ),
 //   .ALARM_OBI_WIDTH ( (cf_math_pkg::idx_width(NumXbarSbr)*NumXbarManagers)
 //                     + cf_math_pkg::idx_width(NumPeriphs) )  // Auto-calculated
 // ) u_telemetry_tx (
@@ -387,7 +387,7 @@ endmodule
 //   .vccint_i       ( fpga_vccint      ),
 //   .alarm_f_i      ( alarm_f_o        ),  // 32-bit
 //   .alarm_rf_i     ( alarm_rf_o       ),  // 32-bit
-//   .alarm_dm_i     ( alarm_dm_o       ),  // 32-bit
+//   .alarm_uart_i     ( alarm_uart_o       ),  // 32-bit
 //   .alarm_obi_dmx_i( alarm_obi_dmx_o  ),  // Variable width (auto-handled)
 //   .tx_o           ( telemetry_tx_line),
 //   .tx_busy_o      ( telemetry_tx_busy),

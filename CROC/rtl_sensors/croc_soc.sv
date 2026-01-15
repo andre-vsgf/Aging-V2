@@ -232,8 +232,8 @@ module croc_soc import croc_pkg::*; #(
     .sensor_alarm_f_i      ( alarm_f_o              ),  // 32-bit
     .sensor_alarm_rf_i     ( alarm_rf_o             ),  // 32-bit
     
-`ifdef WITH_SENSOR_DM
-    .sensor_alarm_obi_dmx_i( alarm_dm_o             ),  // 32-bit (mapped from DM)
+`ifdef WITH_SENSOR_OBI_DMX
+    .sensor_alarm_obi_dmx_i( alarm_obi_dmx_o        ),  // 32-bit (mapped from DM)
 `else
     .sensor_alarm_obi_dmx_i( 32'h0                  ),
 `endif

@@ -6,7 +6,7 @@
 // - UART Router (PC ↔ CROC ↔ STM32)
 // - System Monitor (FPGA temperature, VCCINT)
 // - Telemetry TX (sends System Monitor + ALL 4 sensor types to PC)
-// - All 4 aging sensor types (AM/LF/DM/OBI_DMX)
+// - All 4 aging sensor types (AM/LF/UART/OBI_DMX)
 //==============================================================================
 
 `define TARGET_FPGA
@@ -16,9 +16,9 @@
 `define WITH_SENSOR
 `define WITH_SENSOR_LF
 `define WITH_SENSOR_AM
-// Uncomment if your croc_soc has these sensors:
-`define WITH_SENSOR_DM
+`define WITH_SENSOR_UART
 `define WITH_SENSOR_OBI_DMX
+//`define WITH_SENSOR_DM
 
 `define TARGET_SYNTHESIS
 `define TARGET_VIVADO
@@ -112,6 +112,13 @@ module croc_xilinx import croc_pkg::*; #(
 `else
   wire [31:0] alarm_dm_o = 32'h0;
 `endif
+
+`ifdef WITH_SENSOR_UART
+  logic [31:0] alarm_uart_o;
+`else
+  wire [31:0] alarm_uart_o = 32'h0;
+`endif
+
 
 `ifdef WITH_SENSOR_OBI_DMX
   logic [31:0] alarm_obi_dmx_o;
@@ -372,10 +379,10 @@ module croc_xilinx import croc_pkg::*; #(
     // DM sensors: alarm_dm_or_o is the OR of low and high parts
     // If you want the full 32-bit value, you need to use alarm_dm_low/high
     // But since telemetry expects 32 bits, we need to construct it:
-`ifdef WITH_SENSOR_DM
-    .alarm_dm_i     ( alarm_dm_or_o    ),  // [31:0] DM sensors (ORed)
+`ifdef WITH_SENSOR_UART
+    .alarm_uart_i    ( alarm_uart_o    ),  // [31:0] DM sensors (ORed)
 `else
-    .alarm_dm_i     ( 32'h0            ),  // Tie to 0 if sensor not present
+    .alarm_uart_i    ( 32'h0            ),  // Tie to 0 if sensor not present
 `endif
     
     // OBI_DMX sensors: Variable width signal
@@ -460,7 +467,7 @@ module croc_xilinx import croc_pkg::*; #(
     // ===== AGING SENSORS =====
     
 `ifdef WITH_SENSOR_AM
-    // AM (Accelerated Metal) Sensors - "F" type
+    // Sensors - "F" type
     .psclk_f_i       ( psclk_f_i      ),
     .alarm_f_o       ( alarm_f_o      ),
     .ff1_f_o         ( ff1_f_o        ),
@@ -469,7 +476,7 @@ module croc_xilinx import croc_pkg::*; #(
 `endif
 
 `ifdef WITH_SENSOR_LF
-    // LF (Low Frequency) Sensors - "RF" type
+    // Sensors - "RF" type
     .psclk_rf_i      ( psclk_rf_i     ),
     .alarm_rf_o      ( alarm_rf_o     ),
     .ff1_rf_o        ( ff1_rf_o       ),
@@ -478,15 +485,20 @@ module croc_xilinx import croc_pkg::*; #(
 `endif
 
 `ifdef WITH_SENSOR_DM
-    // DM Sensors (from colleague's work)
     .psclk_dm_i      ( psclk_dm_i     ),
     .alarm_dm_or_o   ( alarm_dm_o     ),
 `endif
 
+`ifdef WITH_SENSOR_UART
+    // UART Sensors
+    .psclk_uart_i    ( psclk_uart_i   ),
+    .alarm_uart_o    ( alarm_uart_o   ),
+`endif
+
 `ifdef WITH_SENSOR_OBI_DMX
-    // OBI DMX Sensors (from colleague's work)
+    // OBI DMX Sensors
     .psclk_obi_dmx_i     ( psclk_obi_dmx_i ),
-    .alarm_obi_dmx_or_o  ( alarm_obi_dmx_o ),
+    .alarm_obi_dmx_   o  ( alarm_obi_dmx_o ),
 `endif
 
 `ifdef WITH_SENSOR
