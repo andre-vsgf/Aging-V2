@@ -288,6 +288,11 @@ module system_monitor_usp #(
     //==========================================================================
     // Instância do IP Xilinx
     //==========================================================================
+    // IMPORTANTE: O IP sysmon_wiz_0 foi configurado com:
+    //   CHANNEL_ENABLE_VP_VN = false
+    // Portanto, NÃO existem portas .vp e .vn neste IP!
+    // Apenas os sensores internos (temperatura, VCCINT) são usados.
+    
     sysmon_wiz_0 u_sysmon_inst (
         // Interface DRP
         .daddr_in       (daddr),
@@ -304,12 +309,9 @@ module system_monitor_usp #(
         .channel_out    (),
         .eoc_out        (eoc),
         .eos_out        (eos),
-        .alarm_out      (alarm),
+        .alarm_out      (alarm)
         
-        // Entradas Analógicas
-        // NOTA: 1'b0 funcionou no projeto anterior!
-        .vp             (1'b0),
-        .vn             (1'b0)
+        // NOTA: Sem portas .vp e .vn - IP configurado apenas para sensores internos
     );
 
 endmodule

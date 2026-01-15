@@ -1,2 +1,113 @@
-App/.venv/
-App/venv
+# ==============================================================================
+# CROC FPGA Project - Git Ignore
+# ==============================================================================
+
+# ==============================================================================
+# VIVADO PROJECT OUTPUT (Gerado automaticamente)
+# ==============================================================================
+# A pasta Aging_V2 contém todo o projeto Vivado gerado.
+# NÃO versionar - cada usuário deve gerar localmente.
+Aging_V2/
+
+# Logs de build do Vivado
+*.log
+*.jou
+
+# ==============================================================================
+# VIVADO TEMPORARY FILES
+# ==============================================================================
+*.str
+*.dcp
+*.wdf
+*.xml
+*.html
+.Xil/
+*.pb
+*.cache/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.srcs/
+*.gen/
+
+# ==============================================================================
+# PYTHON
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.eggs/
+*.egg-info/
+*.egg
+
+# Python virtual environments
+.env
+.venv
+ENV/
+
+# ==============================================================================
+# IDE / EDITORS
+# ==============================================================================
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Eclipse
+.project
+.cproject
+.settings/
+
+# ==============================================================================
+# OS SPECIFIC
+# ==============================================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.fuse_hidden*
+.Trash-*
+
+# ==============================================================================
+# MISC
+# ==============================================================================
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# User-specific configuration
+config.local.json
+settings.local.json
