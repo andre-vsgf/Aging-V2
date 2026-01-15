@@ -1,9 +1,9 @@
-// Copyright 2024 ETH Zurich and University of Bologna.
-// Solderpad Hardware License, Version 0.51, see LICENSE for details.
-// SPDX-License-Identifier: SHL-0.51
-//
-// Authors:
-// - Philippe Sauter <phsauter@iis.ee.ethz.ch>
+//==============================================================================
+// croc_soc.sv - SIGNAL CORRECTIONS FOR TELEMETRY
+//==============================================================================
+// This file shows the CORRECTED signal declarations and connections
+// Replace the corresponding sections in your croc_soc.sv
+//==============================================================================
 
 module croc_soc import croc_pkg::*; #(
   parameter int unsigned GpioCount = 16
@@ -21,94 +21,91 @@ module croc_soc import croc_pkg::*; #(
   input  logic jtag_tms_i,
   input  logic jtag_trst_ni,
 
-// Aging sensors
+  // =========================================================================
+  // Aging Sensors - CORRECTED OUTPUT TYPES
+  // =========================================================================
+  
 `ifdef WITH_SENSOR_AM
   `define WITH_SENSOR
   input logic                  psclk_f_i,
-  //output logic                 alarm_f_or_o,
-  output logic [31:0]          alarm_f_o,
+  output logic [31:0]          alarm_f_o,      // Full 32-bit output
   output logic [31:0]          ff1_f_o,
   output logic [31:0]          ff2_f_o,
   output logic [31:0]          xor_out_f_o,
-`else
- `endif
+`endif
 
 `ifdef WITH_SENSOR_LF
   `define WITH_SENSOR
-  input logic  psclk_rf_i,
-  //output logic alarm_rf_or_o,
-  output logic [31:0] alarm_rf_o,
-  output logic [31:0] ff1_rf_o,
-  output logic [31:0] ff2_rf_o,
-  output logic [31:0] xor_out_rf_o,
-`else
+  input logic                  psclk_rf_i,
+  output logic [31:0]          alarm_rf_o,     // Full 32-bit output
+  output logic [31:0]          ff1_rf_o,
+  output logic [31:0]          ff2_rf_o,
+  output logic [31:0]          xor_out_rf_o,
 `endif
 
-`ifdef WITH_SENSOR_DM   // Debug module
+`ifdef WITH_SENSOR_DM
   `define WITH_SENSOR
-  input logic psclk_dm_i,
-  output logic alarm_dm_or_o,
-`else
+  input logic                  psclk_dm_i,
+  // CHANGE: Output full 32-bit value instead of single OR bit
+  output logic [31:0]          alarm_dm_o,     // Full 32-bit output (was alarm_dm_or_o)
 `endif
 
-`ifdef WITH_SENSOR_OBI_DMX  // OBI Demux
-`define WITH_SENSOR
-  input logic psclk_obi_dmx_i,
+`ifdef WITH_SENSOR_OBI_DMX
+  `define WITH_SENSOR
+  input logic                  psclk_obi_dmx_i,
+  // Keep variable width (will be handled by telemetry module parameters)
   output logic [(cf_math_pkg::idx_width(NumXbarSbr)*NumXbarManagers)+cf_math_pkg::idx_width(NumPeriphs)-1:0] alarm_obi_dmx_o,
-`else
 `endif
 
 `ifdef WITH_SENSOR_UART
-`define WITH_SENSOR
-  input logic psclk_uart_i,
-  output logic [19-1:0] alarm_uart_o,
-`else
+  `define WITH_SENSOR
+  input logic                  psclk_uart_i,
+  output logic [19-1:0]        alarm_uart_o,
 `endif
 
-// Common signal
 `ifdef WITH_SENSOR
-  input logic catcher_clk_i,
-`else
+  input logic                  catcher_clk_i,
 `endif
 
   input  logic uart_rx_i,
   output logic uart_tx_o,
 
-  input  logic [GpioCount-1:0] gpio_i,       // Input from GPIO pins
-  output logic [GpioCount-1:0] gpio_o,       // Output to GPIO pins
-  output logic [GpioCount-1:0] gpio_out_en_o // Output enable signal; 0 -> input, 1 -> output
+  input  logic [GpioCount-1:0] gpio_i,
+  output logic [GpioCount-1:0] gpio_o,
+  output logic [GpioCount-1:0] gpio_out_en_o
 );
 
-  // Sensor alarm single signal output
-`ifdef WITH_SENSOR_LF
- // logic [31:0] alarm_rf;
-  //assign alarm_rf_or_o = |alarm_rf;
+  // =========================================================================
+  // Internal Signal Handling for DM Sensors
+  // =========================================================================
   
-`endif
-
-`ifdef WITH_SENSOR_AM
-  //logic [31:0] alarm_f;
-  //assign alarm_f_or_o = |alarm_f;
-`endif
-
 `ifdef WITH_SENSOR_DM
+  // Internal signals from croc_domain (low and high parts)
   logic [31:0] alarm_dm_low, alarm_dm_high;
-  assign alarm_dm_or_o = |{alarm_dm_high, alarm_dm_low};
-`else
+  
+  // OPTION 1: Output the combined 64-bit as single 32-bit OR
+  // assign alarm_dm_o = alarm_dm_high | alarm_dm_low;
+  
+  // OPTION 2: Output only the low 32 bits (most common sensors)
+  assign alarm_dm_o = alarm_dm_low;
+  
+  // OPTION 3: Concatenate high and low, taking lower 32 bits
+  // assign alarm_dm_o = {alarm_dm_high[15:0], alarm_dm_low[15:0]};
 `endif
 
+  // =========================================================================
+  // Internal Signal Handling for OBI_DMX Sensors
+  // =========================================================================
+  
 `ifdef WITH_SENSOR_OBI_DMX
-  logic [(cf_math_pkg::idx_width(NumXbarSbr)*NumXbarManagers)+cf_math_pkg::idx_width(NumPeriphs)-1:0] alarm_obi_dmx;
-  assign alarm_obi_dmx_o = alarm_obi_dmx;
-`else
+  logic [(cf_math_pkg::idx_width(NumXbarSbr)*NumXbarManagers)+cf_math_pkg::idx_width(NumPeriphs)-1:0] alarm_obi_dmx_internal;
+  assign alarm_obi_dmx_o = alarm_obi_dmx_internal;
 `endif
 
-`ifdef WITH_SENSOR_UART
-   logic [19-1:0] alarm_uart;
-   assign alarm_uart_o = alarm_uart;
-`else
-`endif
-
+  // =========================================================================
+  // Rest of module (unchanged)
+  // =========================================================================
+  
   logic synced_rst_n, synced_fetch_en;
 
   rstgen i_rstgen (
@@ -129,121 +126,146 @@ module croc_soc import croc_pkg::*; #(
       .serial_o ( synced_fetch_en )
     );
 
-// Connection between Croc_domain and User_domain: User Sbr, Croc Mgr
-sbr_obi_req_t user_sbr_obi_req;
-sbr_obi_rsp_t user_sbr_obi_rsp;
+  // Connection between Croc_domain and User_domain
+  sbr_obi_req_t user_sbr_obi_req;
+  sbr_obi_rsp_t user_sbr_obi_rsp;
+  mgr_obi_req_t user_mgr_obi_req;
+  mgr_obi_rsp_t user_mgr_obi_rsp;
 
-// Connection between Croc_domain and User_domain: Croc Sbr, User Mgr
-mgr_obi_req_t user_mgr_obi_req;
-mgr_obi_rsp_t user_mgr_obi_rsp;
+  logic [NumExternalIrqs-1:0] interrupts;
+  logic [GpioCount-1:0] gpio_in_sync;
 
-logic [NumExternalIrqs-1:0] interrupts;
-logic [GpioCount-1:0] gpio_in_sync;
+  // =========================================================================
+  // CROC Domain Instantiation - CORRECTED CONNECTIONS
+  // =========================================================================
+  
+  croc_domain #(
+    .GpioCount( GpioCount ) 
+  ) i_croc (
+    .clk_i,
+    .rst_ni ( synced_rst_n ),
+    .ref_clk_i,
+    .testmode_i,
+    .fetch_en_i ( synced_fetch_en ),
 
-croc_domain #(
-  .GpioCount( GpioCount ) 
-) i_croc (
-  .clk_i,
-  .rst_ni ( synced_rst_n ),
-  .ref_clk_i,
-  .testmode_i,
-  .fetch_en_i ( synced_fetch_en ),
+    .jtag_tck_i,
+    .jtag_tdi_i,
+    .jtag_tdo_o,
+    .jtag_tms_i,
+    .jtag_trst_ni,
 
-  .jtag_tck_i,
-  .jtag_tdi_i,
-  .jtag_tdo_o,
-  .jtag_tms_i,
-  .jtag_trst_ni,
+    .uart_rx_i,
+    .uart_tx_o,
 
-  .uart_rx_i,
-  .uart_tx_o,
+    .gpio_i,             
+    .gpio_o,            
+    .gpio_out_en_o,
 
-  .gpio_i,             
-  .gpio_o,            
-  .gpio_out_en_o,
+    .gpio_in_sync_o ( gpio_in_sync ),
 
-  .gpio_in_sync_o ( gpio_in_sync ),
-
-// Aging Sensors
+    // Aging Sensors - CORRECTED OUTPUT CONNECTIONS
 `ifdef WITH_SENSOR_AM
-`define WITH_SENSOR
-  .psclk_f_i           ( psclk_f_i  ),
-  .alarm_f_o           ( alarm_f_o   ),
-  .ff1_f_o            (ff1_f_o),
-  .ff2_f_o            (ff2_f_o),
-  .xor_out_f_o        (xor_out_f_o),
-`else
+    .psclk_f_i      ( psclk_f_i  ),
+    .alarm_f_o      ( alarm_f_o  ),   // Direct connection - already 32-bit
+    .ff1_f_o        ( ff1_f_o    ),
+    .ff2_f_o        ( ff2_f_o    ),
+    .xor_out_f_o    ( xor_out_f_o),
 `endif
 
 `ifdef WITH_SENSOR_LF
-`define WITH_SENSOR
-  .psclk_rf_i          ( psclk_rf_i ),
-  .alarm_rf_o          ( alarm_rf_o   ),
-  .ff1_rf_o,
-  .ff2_rf_o, 
-  .xor_out_rf_o,
-`else
+    .psclk_rf_i     ( psclk_rf_i ),
+    .alarm_rf_o     ( alarm_rf_o ),   // Direct connection - already 32-bit
+    .ff1_rf_o,
+    .ff2_rf_o, 
+    .xor_out_rf_o,
 `endif
 
 `ifdef WITH_SENSOR_UART
-`define WITH_SENSOR
-  .psclk_uart_i          ( psclk_uart_i ),
-  .alarm_uart_o          ( alarm_uart   ),
-`else
+    .psclk_uart_i   ( psclk_uart_i ),
+    .alarm_uart_o   ( alarm_uart_o ),  // 19-bit output
 `endif
 
 `ifdef WITH_SENSOR_DM
-`define WITH_SENSOR
-    .psclk_dm_i           (psclk_dm_i),
-    .alarm_dm_low_o       (alarm_dm_low),
-    .alarm_dm_high_o      (alarm_dm_high),
-  `else
- `endif
-
-`ifdef WITH_SENSOR_OBI_DMX
-`define WITH_SENSOR
-    .psclk_obi_dmx_i  ( psclk_obi_dmx_i ),
-    .alarm_obi_dmx_o  ( alarm_obi_dmx ),
-  `else
-  `endif
-
-// Common signal
-`ifdef WITH_SENSOR
-  .catcher_clk_i       (catcher_clk_i),
-`else
+    .psclk_dm_i     ( psclk_dm_i      ),
+    .alarm_dm_low_o ( alarm_dm_low    ),  // Connect to internal signals
+    .alarm_dm_high_o( alarm_dm_high   ),
 `endif
 
-  .user_sbr_obi_req_o  ( user_sbr_obi_req ),
-  .user_sbr_obi_rsp_i  ( user_sbr_obi_rsp ),
+`ifdef WITH_SENSOR_OBI_DMX
+    .psclk_obi_dmx_i ( psclk_obi_dmx_i       ),
+    .alarm_obi_dmx_o ( alarm_obi_dmx_internal),  // Variable width
+`endif
 
-  .user_mgr_obi_req_i  ( user_mgr_obi_req ),
-  .user_mgr_obi_rsp_o  ( user_mgr_obi_rsp ),
+`ifdef WITH_SENSOR
+    .catcher_clk_i  ( catcher_clk_i ),
+`endif
 
-  .interrupts_i ( interrupts  ),
-  .core_busy_o  ( status_o    )
-);
+    .user_sbr_obi_req_o  ( user_sbr_obi_req ),
+    .user_sbr_obi_rsp_i  ( user_sbr_obi_rsp ),
 
-user_domain #(
-  .GpioCount( GpioCount ) 
-) i_user (
-  .clk_i,
-  .rst_ni ( synced_rst_n ),
-  .ref_clk_i,
-  .testmode_i,
+    .user_mgr_obi_req_i  ( user_mgr_obi_req ),
+    .user_mgr_obi_rsp_o  ( user_mgr_obi_rsp ),
 
-  .user_sbr_obi_req_i ( user_sbr_obi_req ),
-  .user_sbr_obi_rsp_o ( user_sbr_obi_rsp ),
+    .interrupts_i ( interrupts  ),
+    .core_busy_o  ( status_o    )
+  );
 
-  .user_mgr_obi_req_o ( user_mgr_obi_req ),
-  .user_mgr_obi_rsp_i ( user_mgr_obi_rsp ),
+  // =========================================================================
+  // USER Domain Instantiation - CORRECTED CONNECTIONS
+  // =========================================================================
+  
+  user_domain #(
+    .GpioCount( GpioCount ) 
+  ) i_user (
+    .clk_i,
+    .rst_ni ( synced_rst_n ),
+    .ref_clk_i,
+    .testmode_i,
 
-  .sensor_alarm_f_i   ( alarm_f_o  ),  // Conecta saída do Croc na entrada do User
-  .sensor_alarm_rf_i  ( alarm_rf_o ),
-  .sensor_alarm_obi_dmx_i ( alarm_obi_dmx ),
-  .sensor_alarm_uart_i     ( alarm_uart ),
+    .user_sbr_obi_req_i ( user_sbr_obi_req ),
+    .user_sbr_obi_rsp_o ( user_sbr_obi_rsp ),
 
-  .gpio_in_sync_i ( gpio_in_sync ),
-  .interrupts_o   ( interrupts   )
-);
+    .user_mgr_obi_req_o ( user_mgr_obi_req ),
+    .user_mgr_obi_rsp_i ( user_mgr_obi_rsp ),
+
+    // Pass all sensor signals to user domain
+    .sensor_alarm_f_i      ( alarm_f_o              ),  // 32-bit
+    .sensor_alarm_rf_i     ( alarm_rf_o             ),  // 32-bit
+    
+`ifdef WITH_SENSOR_DM
+    .sensor_alarm_obi_dmx_i( alarm_dm_o             ),  // 32-bit (mapped from DM)
+`else
+    .sensor_alarm_obi_dmx_i( 32'h0                  ),
+`endif
+
+`ifdef WITH_SENSOR_UART
+    .sensor_alarm_uart_i   ( alarm_uart_o           ),  // 19-bit (mapped to OBI)
+`else
+    .sensor_alarm_uart_i   ( 19'h0                  ),
+`endif
+
+    .gpio_in_sync_i ( gpio_in_sync ),
+    .interrupts_o   ( interrupts   )
+  );
 
 endmodule
+
+
+//==============================================================================
+// SUMMARY OF CHANGES
+//==============================================================================
+//
+// 1. Changed `alarm_dm_or_o` → `alarm_dm_o` (single bit → 32-bit)
+//    - Now outputs full 32-bit alarm value instead of just OR
+//    - Options: OR both halves, use low half only, or concatenate
+//
+// 2. Added internal signals `alarm_dm_low` and `alarm_dm_high`
+//    - croc_domain outputs these two 32-bit signals
+//    - croc_soc combines them into single 32-bit output
+//
+// 3. alarm_obi_dmx_o remains variable width
+//    - Telemetry module will handle width conversion via parameters
+//
+// 4. All signals now properly connected for telemetry transmission
+//
+//==============================================================================

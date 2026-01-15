@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Sensor Visualization Widget
+Sensor Visualization Widget - 4 Aging Sensor Types
 
-Provides a visual grid representation of 32-bit alarm registers,
-showing which sensors are active (alarming) and which are inactive.
+Provides a visual grid representation of all 4 sensor alarm registers:
+- ALARM_F (AM - Accelerated Metal, 32 bits)
+- ALARM_RF (LF - Low Frequency, 32 bits)
+- ALARM_DM (Debug Module sensors, 32 bits)
+- ALARM_OBI_DMX (OBI Demux sensors, variable width displayed as 32 bits)
 """
 
 from PySide6.QtWidgets import (
@@ -24,7 +27,7 @@ class SensorCell(QWidget):
         super().__init__(parent)
         self.index = index
         self.active = False
-        self.enabled = True  # NEW: disabled sensors show gray
+        self.enabled = True
         self.setMinimumSize(20, 20)
         self.setMaximumSize(30, 30)
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -46,25 +49,19 @@ class SensorCell(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Draw border
         pen = QPen(QColor(80, 80, 80))
         pen.setWidth(1)
         painter.setPen(pen)
         
-        # Fill based on state
         if not self.enabled:
-            # Disabled: Gray
             brush = QBrush(QColor(60, 60, 60))  # Dark gray
         elif self.active:
-            # Active/Alarm: Red
-            brush = QBrush(QColor(220, 53, 69))  # Bootstrap danger red
+            brush = QBrush(QColor(220, 53, 69))  # Red
         else:
-            # Inactive/OK: Green
-            brush = QBrush(QColor(40, 167, 69))  # Bootstrap success green
+            brush = QBrush(QColor(40, 167, 69))  # Green
         
         painter.setBrush(brush)
         
-        # Draw rounded rectangle
         margin = 2
         painter.drawRoundedRect(
             margin, margin, 
@@ -79,7 +76,7 @@ class SensorCell(QWidget):
 class SensorRegisterWidget(QWidget):
     """
     Displays a 32-bit register as an 8x4 grid of sensor cells.
-    Can be set to disabled (gray) state for placeholder registers.
+    Can be set to disabled (gray) state for inactive sensors.
     """
     
     def __init__(self, title: str, enabled: bool = True, parent=None):
@@ -108,7 +105,6 @@ class SensorRegisterWidget(QWidget):
         layout.addWidget(self.count_label)
         
         # Grid of sensor cells (8 columns x 4 rows = 32 bits)
-        # Bit 31 (MSB) at top-left, Bit 0 (LSB) at bottom-right
         grid_widget = QWidget()
         grid = QGridLayout(grid_widget)
         grid.setSpacing(2)
@@ -116,15 +112,14 @@ class SensorRegisterWidget(QWidget):
         
         for i in range(32):
             row = i // 8
-            col = 7 - (i % 8)  # Reverse column order so MSB is left
-            bit_index = 31 - i  # Bit 31 first
+            col = 7 - (i % 8)
+            bit_index = 31 - i
             
             cell = SensorCell(bit_index)
             cell.setEnabled(self._enabled)
             self.cells.append(cell)
             grid.addWidget(cell, row, col)
         
-        # Reverse cells list so index 0 = bit 0
         self.cells = list(reversed(self.cells))
         
         layout.addWidget(grid_widget)
@@ -140,7 +135,6 @@ class SensorRegisterWidget(QWidget):
                 bit_labels.addStretch()
         layout.addLayout(bit_labels)
         
-        # Apply disabled styling if needed
         if not self._enabled:
             self._apply_disabled_style()
     
@@ -160,7 +154,7 @@ class SensorRegisterWidget(QWidget):
             self._apply_disabled_style()
         else:
             self.title_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
-            self.setValue(self._value)  # Refresh display
+            self.setValue(self._value)
     
     def setValue(self, value: int):
         """Update the register value and refresh display."""
@@ -169,7 +163,6 @@ class SensorRegisterWidget(QWidget):
             
         self._value = value & 0xFFFFFFFF
         
-        # Update each cell
         active_count = 0
         for i, cell in enumerate(self.cells):
             bit_active = bool(self._value & (1 << i))
@@ -177,11 +170,9 @@ class SensorRegisterWidget(QWidget):
             if bit_active:
                 active_count += 1
         
-        # Update labels
         self.title_label.setText(f"{self.title}: 0x{self._value:08X}")
         self.count_label.setText(f"Active: {active_count} / 32")
         
-        # Color the count based on alarm level
         if active_count == 0:
             self.count_label.setStyleSheet("color: #28a745; font-weight: bold;")
         elif active_count < 8:
@@ -198,12 +189,14 @@ class SensorRegisterWidget(QWidget):
 
 class SensorVisualizationWidget(QWidget):
     """
-    Main widget combining all sensor registers with summary statistics.
-    Shows 4 sensor registers: 2 active (ALARM_F, ALARM_RF) and 2 disabled placeholders.
+    Main widget displaying all 4 aging sensor registers:
+    - ALARM_F (AM sensors)
+    - ALARM_RF (LF sensors) 
+    - ALARM_DM (Debug Module sensors)
+    - ALARM_OBI_DMX (OBI Demux sensors)
     """
     
-    # Signal emitted when sensor data is updated
-    data_updated = Signal(object, object)  # alarm_f, alarm_rf
+    data_updated = Signal(dict)  # Emits complete sensor data
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -214,7 +207,7 @@ class SensorVisualizationWidget(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         
         # Main title
-        title = QLabel("Aging Sensor Status")
+        title = QLabel("Aging Sensor Status - All 4 Sensor Types")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 14pt; font-weight: bold; margin-bottom: 10px;")
         layout.addWidget(title)
@@ -223,30 +216,26 @@ class SensorVisualizationWidget(QWidget):
         registers_grid = QGridLayout()
         registers_grid.setSpacing(10)
         
-        # Row 1: Active sensors
-        # AM Sensor (alarm_f)
+        # Row 1: Primary sensors (always active)
         self.alarm_f_widget = SensorRegisterWidget("ALARM_F (AM Sensor)", enabled=True)
         registers_grid.addWidget(self.alarm_f_widget, 0, 0)
         
-        # LF Sensor (alarm_rf)
         self.alarm_rf_widget = SensorRegisterWidget("ALARM_RF (LF Sensor)", enabled=True)
         registers_grid.addWidget(self.alarm_rf_widget, 0, 1)
         
-        # Row 2: Placeholder sensors (disabled/gray)
-        # Placeholder 1
-        self.placeholder1_widget = SensorRegisterWidget("SENSOR_3 (Reserved)", enabled=False)
-        registers_grid.addWidget(self.placeholder1_widget, 1, 0)
+        # Row 2: Secondary sensors (configurable)
+        self.alarm_dm_widget = SensorRegisterWidget("ALARM_DM (Debug Module)", enabled=True)
+        registers_grid.addWidget(self.alarm_dm_widget, 1, 0)
         
-        # Placeholder 2
-        self.placeholder2_widget = SensorRegisterWidget("SENSOR_4 (Reserved)", enabled=False)
-        registers_grid.addWidget(self.placeholder2_widget, 1, 1)
+        self.alarm_obi_widget = SensorRegisterWidget("ALARM_OBI_DMX (OBI Demux)", enabled=True)
+        registers_grid.addWidget(self.alarm_obi_widget, 1, 1)
         
         layout.addLayout(registers_grid)
         
         # Summary bar
         summary_layout = QHBoxLayout()
         
-        self.total_label = QLabel("Total Active Alarms: 0 / 64")
+        self.total_label = QLabel("Total Active Alarms: 0 / 128")
         self.total_label.setAlignment(Qt.AlignCenter)
         self.total_label.setStyleSheet("""
             font-size: 12pt; 
@@ -257,7 +246,6 @@ class SensorVisualizationWidget(QWidget):
         """)
         summary_layout.addWidget(self.total_label)
         
-        # Status indicator
         self.status_indicator = QLabel("● NOMINAL")
         self.status_indicator.setAlignment(Qt.AlignCenter)
         self.status_indicator.setStyleSheet("""
@@ -272,60 +260,109 @@ class SensorVisualizationWidget(QWidget):
         
         layout.addLayout(summary_layout)
     
-    @Slot(object, object)
-    def updateSensorData(self, alarm_f, alarm_rf):
-        """Update both active sensor registers with new values."""
+    @Slot(dict)
+    def updateFromDict(self, data: dict):
+        """
+        Update all sensor registers from a dictionary.
+        
+        Expected keys:
+            - alarm_f: int (32-bit)
+            - alarm_rf: int (32-bit)
+            - alarm_dm: int (32-bit, optional)
+            - alarm_obi_dmx: int (32-bit, optional)
+        """
+        alarm_f = data.get('alarm_f', 0)
+        alarm_rf = data.get('alarm_rf', 0)
+        alarm_dm = data.get('alarm_dm', data.get('obi_dmx', 0))  # Fallback for old naming
+        alarm_obi = data.get('alarm_obi_dmx', data.get('uart_alarm', 0))
+        
+        self.updateSensorData(alarm_f, alarm_rf, alarm_dm, alarm_obi)
+    
+    def updateSensorData(self, alarm_f: int, alarm_rf: int, alarm_dm: int = 0, alarm_obi: int = 0):
+        """Update all sensor registers with new values."""
+        # Update primary sensors
         self.alarm_f_widget.setValue(alarm_f)
         self.alarm_rf_widget.setValue(alarm_rf)
         
-        # Calculate totals (only from active sensors)
-        f_count = bin(alarm_f).count('1')
-        rf_count = bin(alarm_rf).count('1')
-        total = f_count + rf_count
+        # Update secondary sensors
+        self.alarm_dm_widget.setValue(alarm_dm)
+        self.alarm_obi_widget.setValue(alarm_obi)
         
-        self.total_label.setText(f"Total Active Alarms: {total} / 64")
+        # Calculate totals from all active sensors
+        counts = []
+        total_bits = 0
         
-        # Update status indicator
-        if total == 0:
-            self.status_indicator.setText("● NOMINAL")
-            self.status_indicator.setStyleSheet("""
-                font-size: 12pt; font-weight: bold; color: #28a745;
-                padding: 10px; background-color: #1e1e1e; border-radius: 5px;
-            """)
-        elif total < 16:
-            self.status_indicator.setText("● WARNING")
-            self.status_indicator.setStyleSheet("""
-                font-size: 12pt; font-weight: bold; color: #ffc107;
-                padding: 10px; background-color: #1e1e1e; border-radius: 5px;
-            """)
-        else:
-            self.status_indicator.setText("● CRITICAL")
-            self.status_indicator.setStyleSheet("""
-                font-size: 12pt; font-weight: bold; color: #dc3545;
-                padding: 10px; background-color: #1e1e1e; border-radius: 5px;
-            """)
+        if self.alarm_f_widget.isRegisterEnabled():
+            f_count = bin(alarm_f).count('1')
+            counts.append(f_count)
+            total_bits += 32
+            
+        if self.alarm_rf_widget.isRegisterEnabled():
+            rf_count = bin(alarm_rf).count('1')
+            counts.append(rf_count)
+            total_bits += 32
+            
+        if self.alarm_dm_widget.isRegisterEnabled():
+            dm_count = bin(alarm_dm).count('1')
+            counts.append(dm_count)
+            total_bits += 32
+            
+        if self.alarm_obi_widget.isRegisterEnabled():
+            obi_count = bin(alarm_obi).count('1')
+            counts.append(obi_count)
+            total_bits += 32
         
-        # Emit signal
-        self.data_updated.emit(alarm_f, alarm_rf)
+        total = sum(counts)
+        
+        self.total_label.setText(f"Total Active Alarms: {total} / {total_bits}")
+        
+        # Update status indicator based on percentage
+        if total_bits > 0:
+            alarm_pct = (total / total_bits) * 100
+            
+            if alarm_pct == 0:
+                self.status_indicator.setText("● NOMINAL")
+                self.status_indicator.setStyleSheet("""
+                    font-size: 12pt; font-weight: bold; color: #28a745;
+                    padding: 10px; background-color: #1e1e1e; border-radius: 5px;
+                """)
+            elif alarm_pct < 25:
+                self.status_indicator.setText("● WARNING")
+                self.status_indicator.setStyleSheet("""
+                    font-size: 12pt; font-weight: bold; color: #ffc107;
+                    padding: 10px; background-color: #1e1e1e; border-radius: 5px;
+                """)
+            else:
+                self.status_indicator.setText("● CRITICAL")
+                self.status_indicator.setStyleSheet("""
+                    font-size: 12pt; font-weight: bold; color: #dc3545;
+                    padding: 10px; background-color: #1e1e1e; border-radius: 5px;
+                """)
+        
+        # Emit complete data
+        sensor_data = {
+            'alarm_f': alarm_f,
+            'alarm_rf': alarm_rf,
+            'alarm_dm': alarm_dm,
+            'alarm_obi_dmx': alarm_obi,
+            'alarm_f_count': bin(alarm_f).count('1'),
+            'alarm_rf_count': bin(alarm_rf).count('1'),
+            'alarm_dm_count': bin(alarm_dm).count('1'),
+            'alarm_obi_count': bin(alarm_obi).count('1'),
+            'total_alarms': total,
+            'total_bits': total_bits
+        }
+        self.data_updated.emit(sensor_data)
     
-    @Slot(dict)
-    def updateFromDict(self, data: dict):
-        """Update from a dictionary (compatibility with router signals)."""
-        alarm_f = data.get('alarm_f', 0)
-        alarm_rf = data.get('alarm_rf', 0)
-        self.updateSensorData(alarm_f, alarm_rf)
-    
-    def enablePlaceholder(self, index: int, enabled: bool, title: str = None):
+    def enableSensor(self, sensor_name: str, enabled: bool):
         """
-        Enable/disable a placeholder register.
+        Enable/disable a specific sensor register.
         
         Args:
-            index: 1 or 2 (placeholder index)
-            enabled: True to enable, False to disable (gray)
-            title: Optional new title for the register
+            sensor_name: "dm" or "obi_dmx"
+            enabled: True to enable, False to disable (gray out)
         """
-        widget = self.placeholder1_widget if index == 1 else self.placeholder2_widget
-        widget.setRegisterEnabled(enabled)
-        if title:
-            widget.title = title
-            widget.title_label.setText(f"{title}: 0x00000000")
+        if sensor_name.lower() in ["dm", "alarm_dm"]:
+            self.alarm_dm_widget.setRegisterEnabled(enabled)
+        elif sensor_name.lower() in ["obi", "obi_dmx", "alarm_obi_dmx"]:
+            self.alarm_obi_widget.setRegisterEnabled(enabled)

@@ -1,0 +1,1 @@
+timestamp,experiment_time_hours,radiation_dose_krad,alarm_f_hex,alarm_rf_hex,triggered_count_f,triggered_count_rf,triggered_bits_f,triggered_bits_rf,bitstream_name,phase_degrees,slack_ns,fpga_temp_c,vccint_v,vcore_v,ambient_temp_c,event_type,notes

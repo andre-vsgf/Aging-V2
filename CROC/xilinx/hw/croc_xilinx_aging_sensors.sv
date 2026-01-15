@@ -327,9 +327,23 @@ module croc_xilinx import croc_pkg::*; #(
   // Muxed TX line (CROC output + Telemetry)
   logic croc_tx_to_router;
   
+// =========================================================================
+// TELEMETRY TX - System Monitor + ALL 4 Aging Sensor Types
+// =========================================================================
+// Sends periodic telemetry to PC via UART with format:
+//   $SYS,FT,XX.XX,VI,X.XXX,AF,XXXXXXXX,AR,XXXXXXXX,AD,XXXXXXXX,AO,XXXXXXXX*CS
+//
+// Where:
+//   FT = FPGA Temperature (from System Monitor)
+//   VI = VCCINT voltage (from System Monitor)
+//   AF = ALARM_F (AM sensors, 32-bit)
+//   AR = ALARM_RF (LF sensors, 32-bit)
+//   AD = ALARM_DM (DM sensors, 32-bit)
+//   AO = ALARM_OBI_DMX (OBI DMX sensors, variable width → 32-bit)
+// =========================================================================
+
 `ifdef WITH_TELEMETRY_TX
   // Telemetry TX module - sends FPGA data to PC
-  // Includes: System Monitor (temp, vccint) + ALL 4 aging sensor types
   telemetry_tx_4sensor #(
     .CLK_FREQ_HZ    ( CLK_FREQ  ),
     .BAUD_RATE      ( BAUD_RATE ),
@@ -338,20 +352,43 @@ module croc_xilinx import croc_pkg::*; #(
     .clk_i          ( soc_clk          ),
     .rst_ni         ( rst_n            ),
     
-    // Enable control
+    // Enable control (controlled by VIO fetch_en)
     .enable_i       ( telemetry_enable ),
     
+    // =====================================================================
     // System Monitor inputs (FPGA temperature and voltage)
-    .fpga_temp_i    ( fpga_temperature ),
-    .vccint_i       ( fpga_vccint      ),
+    // =====================================================================
+    .fpga_temp_i    ( fpga_temperature ),  // [15:0] from system_monitor
+    .vccint_i       ( fpga_vccint      ),  // [15:0] from system_monitor
     
-    // ALL 4 Aging sensor inputs
-    .alarm_f_i      ( alarm_f_o        ),   // AM sensors
-    .alarm_rf_i     ( alarm_rf_o       ),   // LF sensors
-    .alarm_dm_i     ( alarm_dm_o       ),   // DM sensors
-    .alarm_obi_dmx_i( alarm_obi_dmx_o  ),   // OBI DMX sensors
+    // =====================================================================
+    // ALL 4 Aging sensor inputs - CORRECT CONNECTIONS
+    // =====================================================================
+    // These signals come from croc_soc outputs (declared at top level)
     
-    // UART TX output
+    .alarm_f_i      ( alarm_f_o        ),  // [31:0] AM sensors (F type)
+    .alarm_rf_i     ( alarm_rf_o       ),  // [31:0] LF sensors (RF type)
+    
+    // DM sensors: alarm_dm_or_o is the OR of low and high parts
+    // If you want the full 32-bit value, you need to use alarm_dm_low/high
+    // But since telemetry expects 32 bits, we need to construct it:
+`ifdef WITH_SENSOR_DM
+    .alarm_dm_i     ( alarm_dm_or_o    ),  // [31:0] DM sensors (ORed)
+`else
+    .alarm_dm_i     ( 32'h0            ),  // Tie to 0 if sensor not present
+`endif
+    
+    // OBI_DMX sensors: Variable width signal
+    // The telemetry module will handle the width conversion internally
+`ifdef WITH_SENSOR_OBI_DMX
+    .alarm_obi_dmx_i( alarm_obi_dmx_o  ),  // [calculated width] OBI DMX
+`else
+    .alarm_obi_dmx_i( 32'h0            ),  // Tie to 0 if sensor not present
+`endif
+    
+    // =====================================================================
+    // UART TX output (multiplexed with CROC UART in router)
+    // =====================================================================
     .tx_o           ( telemetry_tx_line),
     .tx_busy_o      ( telemetry_tx_busy),
     .tx_start_o     (                  )

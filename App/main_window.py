@@ -48,9 +48,11 @@ class MainWindow(QMainWindow):
         self.fpga_manager = FPGAManager()
         self.bitstream_manager = BitstreamManager()
         
-        # State
+        # State (add these to existing state variables)
         self._last_alarm_f = 0
         self._last_alarm_rf = 0
+        self._last_alarm_dm = 0      # NEW
+        self._last_alarm_obi = 0     # NEW
         
         # Build UI
         self._init_ui()
@@ -603,23 +605,56 @@ class MainWindow(QMainWindow):
 
     @Slot(dict)
     def _on_sensor_data(self, data: dict):
-        """Handle incoming sensor data."""
+        """
+        Handle incoming sensor data from all 4 sensor types.
+        
+        Expected keys in data dict:
+            - alarm_f: int (AM sensors, 32-bit)
+            - alarm_rf: int (LF sensors, 32-bit)
+            - alarm_dm: int (DM sensors, 32-bit)
+            - alarm_obi_dmx: int (OBI DMX sensors, 32-bit)
+            - alarm_*_count: int (number of active alarms per type)
+            - dut_temp: float (FPGA temperature)
+            - dut_volt: float (VCCINT voltage)
+            - dut_slack: int (total active alarms)
+        """
+        # Extract all 4 sensor values
         alarm_f = data.get('alarm_f', 0)
         alarm_rf = data.get('alarm_rf', 0)
+        alarm_dm = data.get('alarm_dm', 0)
+        alarm_obi = data.get('alarm_obi_dmx', 0)
         
-        # Update visualization
-        self.sensor_widget.updateSensorData(alarm_f, alarm_rf)
+        # Update visualization widget (now handles 4 sensors)
+        self.sensor_widget.updateSensorData(alarm_f, alarm_rf, alarm_dm, alarm_obi)
         
         # Check for new alarms and log to aging analysis
-        # This also handles auto-reprogram if enabled
+        # The aging_widget will handle auto-reprogram if enabled
         new_alarms = self.aging_widget.check_alarms(alarm_f, alarm_rf)
         
         if new_alarms:
-            self.log(f"[AGING] New alarm detected! F=0x{alarm_f:08X} RF=0x{alarm_rf:08X}")
+            f_count = data.get('alarm_f_count', bin(alarm_f).count('1'))
+            rf_count = data.get('alarm_rf_count', bin(alarm_rf).count('1'))
+            dm_count = data.get('alarm_dm_count', bin(alarm_dm).count('1'))
+            obi_count = data.get('alarm_obi_count', bin(alarm_obi).count('1'))
+            total = f_count + rf_count + dm_count + obi_count
+            
+            self.log(
+                f"[AGING] New alarm detected! Total={total} "
+                f"(F={f_count}, RF={rf_count}, DM={dm_count}, OBI={obi_count})"
+            )
+            self.log(f"  F=0x{alarm_f:08X} RF=0x{alarm_rf:08X} "
+                    f"DM=0x{alarm_dm:08X} OBI=0x{alarm_obi:08X}")
         
-        # Store last values
+        # Store last values for all sensors
         self._last_alarm_f = alarm_f
         self._last_alarm_rf = alarm_rf
+        # Add these attributes if they don't exist:
+        if not hasattr(self, '_last_alarm_dm'):
+            self._last_alarm_dm = 0
+        if not hasattr(self, '_last_alarm_obi'):
+            self._last_alarm_obi = 0
+        self._last_alarm_dm = alarm_dm
+        self._last_alarm_obi = alarm_obi
 
     @Slot(object)
     def _on_stm_frame(self, event):

@@ -50,6 +50,7 @@ def get_default_vivado_paths():
             r"C:\Xilinx\Vivado\2024.1\bin\vivado.bat",
             r"C:\Xilinx\Vivado\2023.2\bin\vivado.bat",
             r"C:\Xilinx\2025.1\Vivado\bin\vivado.bat",
+            r"C:\Xilinx\2025.2\Vivado\bin\vivado.bat",
             r"C:\Xilinx\Vivado_Lab\2024.2\bin\vivado_lab.bat",
         ]
         for p in possible_paths:
