@@ -25193,7 +25193,7 @@ set_property BEL HFF [get_cells {i_croc_soc/i_croc/i_dmi_jtag/i_dmi_cdc/i_cdc_re
 set_property LOC SLICE_X29Y103 [get_cells {i_croc_soc/i_croc/i_dmi_jtag/i_dmi_cdc/i_cdc_req/i_src/data_src_q_reg[data][20]}]
 
 set_false_path -from [get_clocks -of_objects [get_pins i_clkwiz/inst/mmcme4_adv_inst/CLKOUT0]] -to [get_clocks -of_objects [get_pins i_clkwiz/inst/mmcme4_adv_inst/CLKOUT2]]
-#set_property C_CLK_INPUT_FREQ_HZ 300000000 [get_debug_cores dbg_hub]
-#set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores dbg_hub]
-#set_property C_USER_SCAN_CHAIN 1 [get_debug_cores dbg_hub]
-#connect_debug_port dbg_hub/clk [get_nets soc_clk]
+set_property C_CLK_INPUT_FREQ_HZ 300000000 [get_debug_cores dbg_hub]
+set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores dbg_hub]
+set_property C_USER_SCAN_CHAIN 1 [get_debug_cores dbg_hub]
+connect_debug_port dbg_hub/clk [get_nets soc_clk]

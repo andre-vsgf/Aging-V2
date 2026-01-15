@@ -1,8 +1,0 @@
-verilog xil_defaultlib -i "../../../../../CROC/rtl_sensors/apb/include" -i "../../../../../CROC/rtl_sensors/common_cells/include" -i "../../../../../CROC/rtl_sensors/cve2/include" -i "../../../../../CROC/rtl_sensors/obi/include" -i "../../../../../CROC/rtl_sensors/register_interface/include" -i "../../../../../../../../AMD/2025.1/data/rsb/busdef" \
-"../../../../Aging_V2.gen/sources_1/ip/sysmon_wiz_0/sysmon_wiz_0_sysmon.v" \
-"../../../../Aging_V2.gen/sources_1/ip/sysmon_wiz_0/sysmon_wiz_0.v" \
-
-verilog xil_defaultlib "glbl.v"
-
-# Do not sort compile order
-nosort

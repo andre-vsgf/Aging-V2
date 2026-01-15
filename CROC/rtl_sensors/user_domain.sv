@@ -19,17 +19,23 @@ module user_domain import user_pkg::*; import croc_pkg::*; #(
   output mgr_obi_req_t user_mgr_obi_req_o, // User Mgr (req_o), Croc Sbr (rsp_i)
   input  mgr_obi_rsp_t user_mgr_obi_rsp_i,
 
-  input  logic [31:0] sensor_alarm_f_i,   // Entrada do sinal F
-  input  logic [31:0] sensor_alarm_rf_i,  // Entrada do sinal RF
-  input  logic [(cf_math_pkg::idx_width(NumXbarSbr)*NumXbarManagers)+cf_math_pkg::idx_width(NumPeriphs)-1:0]  sensor_alarm_obi_dmx_i, // Entrada do sinal OBI Demux
-  input  logic [19-1:0]      sensor_alarm_uart_i,     // Entrada do sinal UART
+  // ========================================================================
+  // Sensor Alarm Inputs - diretamente do croc_soc
+  // ========================================================================
+  input  logic [31:0] sensor_alarm_f_i,        // AM sensors (32 bits)
+  input  logic [31:0] sensor_alarm_rf_i,       // LF sensors (32 bits)
+  
+  // OBI_DMX sensors - largura calculada baseada em NumXbarSbr e NumPeriphs
+  input  logic [(cf_math_pkg::idx_width(NumXbarSbr)*NumXbarManagers)+cf_math_pkg::idx_width(NumPeriphs)-1:0] sensor_alarm_obi_dmx_i,
+  
+  // UART sensors - 19 bits conforme definido no croc_soc
+  input  logic [19-1:0] sensor_alarm_uart_i,
 
-  input  logic [      GpioCount-1:0] gpio_in_sync_i, // synchronized GPIO inputs
+  input  logic [GpioCount-1:0] gpio_in_sync_i, // synchronized GPIO inputs
   output logic [NumExternalIrqs-1:0] interrupts_o // interrupts to core
 );
 
   assign interrupts_o = '0;  
-
 
   //////////////////////
   // User Manager MUX //
@@ -101,44 +107,54 @@ module user_domain import user_pkg::*; import croc_pkg::*; #(
   );
 
 
-//-------------------------------------------------------------------------------------------------
-// User Subordinates
-//-------------------------------------------------------------------------------------------------
-//aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-//-------------------------------------------------------------------------------------------------
-// User Subordinates
-//-------------------------------------------------------------------------------------------------
-
-//-------------------------------------------------------------------------------------------------
-  // User Subordinates
+  //-------------------------------------------------------------------------------------------------
+  // User Sensor Monitor Subordinate
   //-------------------------------------------------------------------------------------------------
 
   sbr_obi_req_t user_sensors_obi_req;
   sbr_obi_rsp_t user_sensors_obi_rsp;
 
-  // Conecta ao Demux usando o ID novo "UserSensors"
-  assign user_sensors_obi_req             = all_user_sbr_obi_req[UserSensors];
+  // Conecta ao Demux usando o ID "UserSensors"
+  assign user_sensors_obi_req              = all_user_sbr_obi_req[UserSensors];
   assign all_user_sbr_obi_rsp[UserSensors] = user_sensors_obi_rsp;
 
-  // Instancia o novo módulo (vamos criar o arquivo no Passo 4)
+  // Instancia o módulo de monitoramento de sensores
   user_sensor_monitor #(
-    .ObiCfg    ( SbrObiCfg     ),
-    .obi_req_t ( sbr_obi_req_t ),
-    .obi_rsp_t ( sbr_obi_rsp_t )
-  ) i_monitor (
-    .clk_i,
-    .rst_ni,
-    .obi_req_i      ( user_sensors_obi_req ),
-    .obi_rsp_o      ( user_sensors_obi_rsp ),
-    // Liga as entradas novas no módulo
-    //
-    .alarm_obi_dmx_i ( sensor_alarm_obi_dmx_i ),
-    .alarm_uart_i     ( sensor_alarm_uart_i     ),
-    .alarm_f_i      ( sensor_alarm_f_i    ),
-    .alarm_rf_i     ( sensor_alarm_rf_i   )
+    .AddrWidth ( SbrObiCfg.AddrWidth ),
+    .DataWidth ( SbrObiCfg.DataWidth )
+  ) u_sensors (
+    .clk_i       ( clk_i  ),
+    .rst_ni      ( rst_ni ),
+    
+    // OBI Slave Interface - conectado corretamente aos sinais do demux
+    .obi_req_i   ( user_sensors_obi_req.req      ),
+    .obi_gnt_o   ( user_sensors_obi_rsp.gnt      ),
+    .obi_addr_i  ( user_sensors_obi_req.a.addr   ),
+    .obi_we_i    ( user_sensors_obi_req.a.we     ),
+    .obi_be_i    ( user_sensors_obi_req.a.be     ),
+    .obi_wdata_i ( user_sensors_obi_req.a.wdata  ),
+    .obi_rvalid_o( user_sensors_obi_rsp.rvalid   ),
+    .obi_rdata_o ( user_sensors_obi_rsp.r.rdata  ),
+    
+    // Sensor alarm inputs - conectados diretamente aos sinais do croc_soc
+    .alarm_f_i     ( sensor_alarm_f_i       ),  // 32 bits - AM sensors
+    .alarm_rf_i    ( sensor_alarm_rf_i      ),  // 32 bits - LF sensors
+    .alarm_obi_i   ( sensor_alarm_obi_dmx_i ),  // Largura calculada - OBI_DMX sensors
+    .alarm_uart_i  ( sensor_alarm_uart_i    ),  // 19 bits - UART sensors
+    
+    .status_o      ( /* pode conectar a debug se necessário */ )
   );
 
+  // Completa os sinais OBI não usados
+  assign user_sensors_obi_rsp.r.rid = user_sensors_obi_req.a.aid;
+  assign user_sensors_obi_rsp.r.err = 1'b0;
+  assign user_sensors_obi_rsp.r.r_optional = 1'b0;
+
+
+  //-------------------------------------------------------------------------------------------------
   // Error Subordinate
+  //-------------------------------------------------------------------------------------------------
+  
   obi_err_sbr #(
     .ObiCfg      ( SbrObiCfg     ),
     .obi_req_t   ( sbr_obi_req_t ),
@@ -148,7 +164,7 @@ module user_domain import user_pkg::*; import croc_pkg::*; #(
   ) i_user_err (
     .clk_i,
     .rst_ni,
-    .testmode_i ( testmode_i      ),
+    .testmode_i ( testmode_i         ),
     .obi_req_i  ( user_error_obi_req ),
     .obi_rsp_o  ( user_error_obi_rsp )
   );

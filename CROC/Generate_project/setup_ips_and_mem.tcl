@@ -85,6 +85,7 @@ if { [llength [get_ips -quiet clk_wiz]] == 0 } {
         CONFIG.USE_RESET {true} \
         CONFIG.RESET_TYPE {ACTIVE_HIGH} \
         CONFIG.RESET_PORT {reset} \
+        CONFIG.PHASESHIFT_MODE {WAVEFORM} \
     ] [get_ips clk_wiz]
 
     puts "      Gerando targets..."
@@ -151,23 +152,35 @@ if { [llength [get_ips -quiet sysmon_wiz_0]] == 0 } {
 }
 
 # ==============================================================================
-# D. VIO (vio_2)
+# D. VIO (vio_0) - FULL DEBUG CORE
 # ==============================================================================
-# Configuração extraída de vio_2.xci:
-#   - Probes de Entrada: 1
-#     - probe_in0[0:0]  : 1 bit
-#   - Probes de Saída: 4
-#     - probe_out0[0:0] : 1 bit  (reset)
-#     - probe_out1[0:0] : 1 bit  (fetch_en)
-#     - probe_out2[3:0] : 4 bits (gpio_out)
-#     - probe_out3[3:0] : 4 bits (reserved)
+# Configuração para vio_0 (versão completa para debug):
+#   - Probes de Entrada (FPGA → Hardware Manager): 13
+#     - probe_in0[0:0]   : 1 bit  (status_o)
+#     - probe_in1-4      : 1 bit each (gpio_o[3:0])
+#     - probe_in5[31:0]  : 32 bits (alarm_rf_o)
+#     - probe_in6[31:0]  : 32 bits (ff1_rf_o)
+#     - probe_in7[31:0]  : 32 bits (ff1_f_o)
+#     - probe_in8[31:0]  : 32 bits (alarm_f_o)
+#     - probe_in9[31:0]  : 32 bits (ff2_rf_o)
+#     - probe_in10[31:0] : 32 bits (ff2_f_o)
+#     - probe_in11[31:0] : 32 bits (xor_out_f_o)
+#     - probe_in12[31:0] : 32 bits (xor_out_rf_o)
+#   - Probes de Saída (Hardware Manager → FPGA): 7
+#     - probe_out0[0:0]  : 1 bit  (vio_reset)
+#     - probe_out1[0:0]  : 1 bit  (vio_fetch_en)
+#     - probe_out2[0:0]  : 1 bit  (vio_gpio)
+#     - probe_out3-6     : 1 bit each (vio_gpio_i[3:0])
+#
+# IMPORTANT: This VIO configuration MUST match the RTL instantiation!
+#            Using wrong VIO will cause "debug hub not found" errors.
 # ==============================================================================
 
-puts "\n\[VIO\] Configurando Virtual I/O (vio_2)..."
+puts "\n\[VIO\] Configurando Virtual I/O (vio_0 - Full Debug)..."
 
-if { [llength [get_ips -quiet vio_2]] == 0 } {
-    puts "      Criando IP vio_2..."
-    create_ip -name vio -vendor xilinx.com -library ip -version 3.0 -module_name vio_2
+if { [llength [get_ips -quiet vio_0]] == 0 } {
+    puts "      Criando IP vio_0..."
+    create_ip -name vio -vendor xilinx.com -library ip -version 3.0 -module_name vio_0
 
     set_property -dict [list \
         CONFIG.C_NUM_PROBE_IN {1} \
@@ -177,17 +190,21 @@ if { [llength [get_ips -quiet vio_2]] == 0 } {
         CONFIG.C_PROBE_OUT1_WIDTH {1} \
         CONFIG.C_PROBE_OUT2_WIDTH {4} \
         CONFIG.C_PROBE_OUT3_WIDTH {4} \
-        CONFIG.C_PROBE_OUT0_INIT_VAL {0x0} \
-        CONFIG.C_PROBE_OUT1_INIT_VAL {0x0} \
+        CONFIG.C_PROBE_OUT0_INIT_VAL {0x1} \
+        CONFIG.C_PROBE_OUT1_INIT_VAL {0x1} \
         CONFIG.C_PROBE_OUT2_INIT_VAL {0x0} \
         CONFIG.C_PROBE_OUT3_INIT_VAL {0x0} \
-    ] [get_ips vio_2]
+    ] [get_ips vio_0]
 
     puts "      Gerando targets..."
-    generate_target all [get_ips vio_2]
-    puts "      OK: vio_2 criado com sucesso."
+    generate_target all [get_ips vio_0]
+    puts "      OK: vio_0 criado com sucesso."
+    puts ""
+    puts "      VIO Probe Summary:"
+    puts "        OUT: 7 probes (reset, fetch_en, gpio, gpio_i[3:0])"
+    puts "        IN:  13 probes (status, gpio_o, alarms, ff1/ff2, xor)"
 } else {
-    puts "      OK: vio_2 já existe no projeto."
+    puts "      OK: vio_0 já existe no projeto."
 }
 
 # ==============================================================================
@@ -199,6 +216,10 @@ puts " IPs Configurados:"
 puts "======================================================="
 puts "   clk_wiz      : MMCM, 100MHz diff -> 3x 20MHz"
 puts "   sysmon_wiz_0 : DRP, Temp+VCCINT, Avg=64, NO VP/VN"
-puts "   vio_2        : 1 in (1b), 4 out (1b,1b,4b,4b)"
+puts "   vio_0        : 13 in (status+alarms), 7 out (reset+gpio)"
+puts "======================================================="
+puts ""
+puts " IMPORTANT: After synthesis, generate new .ltx file!"
+puts "            File > Export > Export Hardware Debug"
 puts "======================================================="
 puts ""

@@ -1,6 +1,0 @@
-xpm_cdc.sv,systemverilog,xpm,../../../../home/danilo-alencar/AMD/2025.1/data/ip/xpm/xpm_cdc/hdl/xpm_cdc.sv,incdir="../../../../../../../../AMD/2025.1/data/rsb/busdef"
-xpm_memory.sv,systemverilog,xpm,../../../../home/danilo-alencar/AMD/2025.1/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv,incdir="../../../../../../../../AMD/2025.1/data/rsb/busdef"
-xpm_VCOMP.vhd,vhdl,xpm,../../../../home/danilo-alencar/AMD/2025.1/data/ip/xpm/xpm_VCOMP.vhd,incdir="../../../../../../../../AMD/2025.1/data/rsb/busdef"
-sysmon_wiz_0_sysmon.v,verilog,xil_defaultlib,../../../../Aging_V2.gen/sources_1/ip/sysmon_wiz_0/sysmon_wiz_0_sysmon.v,incdir="../../../../../../../../AMD/2025.1/data/rsb/busdef"
-sysmon_wiz_0.v,verilog,xil_defaultlib,../../../../Aging_V2.gen/sources_1/ip/sysmon_wiz_0/sysmon_wiz_0.v,incdir="../../../../../../../../AMD/2025.1/data/rsb/busdef"
-glbl.v,Verilog,xil_defaultlib,glbl.v

@@ -1,0 +1,26 @@
+{
+  "clock_period_ns": 50.0,
+  "calibrations": [
+    {
+      "name": "croc_aging_phase-310.bit",
+      "phase_degrees": 0.0,
+      "slack_ns": 0.0,
+      "description": "Auto-imported: 0.0\u00b0 phase shift",
+      "order": 0
+    },
+    {
+      "name": "croc_aging_phase-330.bit",
+      "phase_degrees": 5.0,
+      "slack_ns": 0.6944444444444444,
+      "description": "Auto-imported: 5.0\u00b0 phase shift",
+      "order": 1
+    },
+    {
+      "name": "croc_xilinx.bit",
+      "phase_degrees": 10.0,
+      "slack_ns": 1.3888888888888888,
+      "description": "Auto-imported: 10.0\u00b0 phase shift",
+      "order": 2
+    }
+  ]
+}

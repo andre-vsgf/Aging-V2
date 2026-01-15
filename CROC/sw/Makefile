@@ -14,7 +14,16 @@ INCDIR  ?= lib/inc
 RISCV_XLEN    ?= 32
 RISCV_MARCH   ?= rv$(RISCV_XLEN)i_zicsr
 RISCV_MABI    ?= ilp32
-RISCV_PREFIX  ?= riscv-none-elf-
+
+# --- OS DETECTION START ---
+ifeq ($(OS),Windows_NT)
+    RISCV_PREFIX ?= riscv-none-elf-
+else
+    # Example: Linux often uses 'riscv32-unknown-elf-' or similar
+    RISCV_PREFIX ?= riscv32-unknown-elf-
+endif
+# --- OS DETECTION END ---
+
 RISCV_CC      ?= $(RISCV_PREFIX)gcc
 RISCV_CXX     ?= $(RISCV_PREFIX)g++
 RISCV_OBJDUMP ?= $(RISCV_PREFIX)objdump
@@ -80,28 +89,34 @@ compile: $(BINDIR) $(ALL_TARGETS)
 
 
 # -------------------------------------------------------------------
-# Targets para gerar arquivos de init BRAM
+# Targets to generate Init BRAM files
 # -------------------------------------------------------------------
 
 .PHONY: mem mem_le
 
-# gera helloworld.mem (big-endian, para $readmemh)
+# Generate helloworld.mem (big-endian)
 mem: $(BINDIR)/helloworld.mem
+	@echo "========================================"
+	@echo "  BUILD SUCCESSFUL: helloworld.mem ready"
+	@echo "========================================"
 
-# gera helloworld_le.mem (little-endian)
+# Generate helloworld_le.mem (little-endian)
 mem_le: $(BINDIR)/helloworld_le.mem
+	@echo "========================================"
+	@echo "  BUILD SUCCESSFUL: helloworld_le.mem ready"
+	@echo "========================================"
 
-# regra genérica para extrair o .bin do .elf
+# Generic rule to extract .bin from .elf
 $(BINDIR)/%.bin: $(BINDIR)/%.elf
 	$(RISCV_OBJCOPY) -O binary $< $@
 
-# gerar .mem big-endian (remove diretivas @…, formata 1 palavra/linha)
+# Generate .mem big-endian
 $(BINDIR)/%.mem: $(BINDIR)/%.bin
 	hexdump -v -e '1/4 "%08x\n"' $< | sed '/^@/d' > $@
 
-# gerar _le.mem little-endian (xxd já sai little-endian por palavra)
+# Generate _le.mem little-endian
 $(BINDIR)/%_le.mem: $(BINDIR)/%.bin
 	xxd -p -c4 $< > $@
 
-# garante que o diretório exista antes de gerar qualquer um dos arquivos
+# Ensure bin directory exists
 $(BINDIR)/helloworld.bin $(BINDIR)/helloworld.mem $(BINDIR)/helloworld_le.mem: | $(BINDIR)

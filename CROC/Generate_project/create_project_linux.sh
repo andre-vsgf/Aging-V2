@@ -42,6 +42,9 @@ else
         "$HOME/Xilinx/Vivado/2025.1"
         "$HOME/Xilinx/Vivado/2024.2"
         "$HOME/Xilinx/Vivado/2024.1"
+        "$HOME/2025.2/Vivado/bin"
+        "$HOME/2025.1/Vivado/bin"
+        "vivado"
     )
     
     VIVADO_FOUND=""

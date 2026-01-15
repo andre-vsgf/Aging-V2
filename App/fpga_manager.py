@@ -4,6 +4,11 @@ FPGA Programming Manager
 
 Handles FPGA bitstream programming via Vivado in batch mode.
 Cross-platform support for Windows and Linux.
+
+Features:
+- SRAM Programming (volatile, .bit files)
+- FLASH Programming (persistent, .bin files)
+- VIO Reset (soft reset via debug probes)
 """
 
 import os
@@ -36,10 +41,18 @@ class FPGAManager(QObject):
         self.process = None
         self.is_programming = False
         self._current_bitstream = ""
+        self._current_operation = ""  # "program" or "reset"
         
-        # Get TCL script path (same directory as this module)
-        self._tcl_script = str(Path(__file__).parent / "program_fpga.tcl")
-        self._tcl_reset = str(Path(__file__).parent / "reset_fpga.tcl") # NOVO
+        # Get TCL script paths (same directory as this module)
+        script_dir = Path(__file__).parent
+        self._tcl_program = str(script_dir / "program_fpga.tcl")
+        self._tcl_reset = str(script_dir / "reset_fpga.tcl")
+        
+        # Alternative: Check in scripts/ subdirectory
+        if not os.path.exists(self._tcl_program):
+            self._tcl_program = str(script_dir / "scripts" / "program_fpga.tcl")
+        if not os.path.exists(self._tcl_reset):
+            self._tcl_reset = str(script_dir / "scripts" / "reset_fpga.tcl")
 
     def _find_vivado(self) -> str:
         """
@@ -84,7 +97,7 @@ class FPGAManager(QObject):
         
         Args:
             file_path: Path to the .bit or .bin file
-            mode: "sram" (default) or "flash"
+            mode: "sram" (default, volatile) or "flash" (persistent)
         """
         if self.is_programming:
             self.output.emit("⚠ Another programming operation is in progress.")
@@ -96,40 +109,35 @@ class FPGAManager(QObject):
             self.finished.emit(False, "File not found")
             return
             
-        # Check extensions warning
+        # Check file extension warning
         if mode == "flash" and not file_path.lower().endswith('.bin'):
             self.output.emit("⚠ Warning: Flash programming usually requires a .bin file.")
         
-        # Find Vivado and Script (Copy existing logic here...)
+        # Find Vivado
         vivado_exe = self._find_vivado()
         if not vivado_exe:
             msg = (
                 "✗ Vivado executable not found.\n"
-                "Please configure the Vivado path in Settings or ensure it's in your PATH.\n"
-                f"Searched: {config.VIVADO_PATH}"
+                "  Please configure the Vivado path in Settings or ensure it's in your PATH.\n"
+                f"  Searched: {config.VIVADO_PATH}"
             )
             self.output.emit(msg)
             self.finished.emit(False, "Vivado not found")
             return
         
         # Validate TCL script
-        if not os.path.exists(self._tcl_script):
-            self.output.emit(f"✗ TCL script not found: {self._tcl_script}")
+        if not os.path.exists(self._tcl_program):
+            self.output.emit(f"✗ TCL script not found: {self._tcl_program}")
             self.finished.emit(False, "TCL script not found")
             return
         
         # Setup process
-        self.process = QProcess(self)
-        self.process.readyReadStandardOutput.connect(self._handle_stdout)
-        self.process.readyReadStandardError.connect(self._handle_stderr)
-        self.process.finished.connect(self._handle_finished)
-        self.process.errorOccurred.connect(self._handle_error)
+        self._setup_process()
         
         # Build command arguments
         file_abspath = os.path.abspath(file_path)
-        tcl_abspath = os.path.abspath(self._tcl_script)
+        tcl_abspath = os.path.abspath(self._tcl_program)
         
-        # Base arguments
         args = ["-mode", "batch", "-source", tcl_abspath, "-tclargs", file_abspath]
         
         # Add flash flag if needed
@@ -138,13 +146,16 @@ class FPGAManager(QObject):
         
         # UI Updates
         self._current_bitstream = os.path.basename(file_path)
+        self._current_operation = "program"
         self.is_programming = True
         
         mode_str = "FLASH (Persistent)" if mode == "flash" else "SRAM (Volatile)"
         
         self.output.emit("=" * 60)
         self.output.emit(f"▶ Starting FPGA Programming [{mode_str}]")
-        self.output.emit(f"  File: {self._current_bitstream}")
+        self.output.emit(f"  Vivado: {vivado_exe}")
+        self.output.emit(f"  File:   {self._current_bitstream}")
+        self.output.emit(f"  Script: {os.path.basename(tcl_abspath)}")
         self.output.emit("=" * 60)
         
         self.started.emit(self._current_bitstream)
@@ -156,8 +167,10 @@ class FPGAManager(QObject):
     def reset(self, ltx_path: str = None):
         """
         Trigger FPGA Reset via VIO.
+        
         Args:
             ltx_path: Full path to the .ltx debug probes file.
+                      If None, the script will try to auto-detect VIO cores.
         """
         if self.is_programming:
             self.output.emit("⚠ Another operation is in progress.")
@@ -166,36 +179,42 @@ class FPGAManager(QObject):
         vivado_exe = self._find_vivado()
         if not vivado_exe:
             self.output.emit("✗ Vivado executable not found.")
+            self.finished.emit(False, "Vivado not found")
             return
 
         if not os.path.exists(self._tcl_reset):
             self.output.emit(f"✗ Reset script not found: {self._tcl_reset}")
+            self.finished.emit(False, "Reset script not found")
             return
 
-        self.process = QProcess(self)
-        self.process.readyReadStandardOutput.connect(self._handle_stdout)
-        self.process.readyReadStandardError.connect(self._handle_stderr)
-        self.process.finished.connect(self._handle_finished)
-        self.process.errorOccurred.connect(self._handle_error)
+        # Setup process
+        self._setup_process()
 
-        # Pass the LTX file to the TCL script
-        args = ["-mode", "batch", "-source", self._tcl_reset]
+        # Build arguments
+        tcl_abspath = os.path.abspath(self._tcl_reset)
+        args = ["-mode", "batch", "-source", tcl_abspath]
         
+        # Add LTX file if provided and exists
+        ltx_info = "(auto-detect)"
         if ltx_path:
-            # Check if file exists before passing
             if os.path.exists(ltx_path):
                 args.extend(["-tclargs", ltx_path])
+                ltx_info = os.path.basename(ltx_path)
             else:
-                self.output.emit(f"⚠ Warning: LTX file not found at {ltx_path}")
-                # We try running anyway, maybe user relies on luck (but likely fails)
+                self.output.emit(f"⚠ Warning: LTX file not found: {ltx_path}")
+                self.output.emit("  Will try to auto-detect VIO cores...")
+                ltx_info = "(not found, auto-detect)"
 
+        self._current_operation = "reset"
         self.is_programming = True
         
         self.output.emit("=" * 60)
-        self.output.emit("▶ STARTING FPGA RESET (VIO)...")
-        if ltx_path:
-             self.output.emit(f"  Probes: {os.path.basename(ltx_path)}")
+        self.output.emit("▶ STARTING FPGA RESET (VIO)")
+        self.output.emit(f"  Vivado: {vivado_exe}")
+        self.output.emit(f"  Probes: {ltx_info}")
+        self.output.emit(f"  Script: {os.path.basename(tcl_abspath)}")
         self.output.emit("=" * 60)
+        
         self.started.emit("Reset Sequence")
         self.progress.emit(10)
 
@@ -204,8 +223,16 @@ class FPGAManager(QObject):
     def cancel(self):
         """Attempt to cancel the current programming operation."""
         if self.process and self.process.state() != QProcess.NotRunning:
-            self.output.emit("⚠ Cancelling programming operation...")
+            self.output.emit("⚠ Cancelling operation...")
             self.process.kill()
+
+    def _setup_process(self):
+        """Create and configure the QProcess."""
+        self.process = QProcess(self)
+        self.process.readyReadStandardOutput.connect(self._handle_stdout)
+        self.process.readyReadStandardError.connect(self._handle_stderr)
+        self.process.finished.connect(self._handle_finished)
+        self.process.errorOccurred.connect(self._handle_error)
 
     def _handle_stdout(self):
         """Handle standard output from Vivado."""
@@ -216,20 +243,7 @@ class FPGAManager(QObject):
                 line = line.strip()
                 if line:
                     self.output.emit(f"  {line}")
-                    
-                    # Parse progress from Vivado output
-                    if "open_hw_manager" in line.lower():
-                        self.progress.emit(20)
-                    elif "connect_hw_server" in line.lower():
-                        self.progress.emit(30)
-                    elif "open_hw_target" in line.lower():
-                        self.progress.emit(50)
-                    elif "program_hw_devices" in line.lower():
-                        self.progress.emit(70)
-                    elif "close_hw" in line.lower():
-                        self.progress.emit(90)
-                    elif "sucesso" in line.lower() or "success" in line.lower():
-                        self.progress.emit(100)
+                    self._parse_progress(line)
         except Exception as e:
             self.output.emit(f"[Read Error] {e}")
 
@@ -253,6 +267,55 @@ class FPGAManager(QObject):
         except Exception as e:
             self.output.emit(f"[Read Error] {e}")
 
+    def _parse_progress(self, line: str):
+        """Parse Vivado output to estimate progress."""
+        line_lower = line.lower()
+        
+        # Progress tracking
+        if "open_hw_manager" in line_lower:
+            self.progress.emit(15)
+        elif "connect_hw_server" in line_lower:
+            self.progress.emit(25)
+        elif "scanning for hardware targets" in line_lower:
+            self.progress.emit(30)
+        elif "opening target" in line_lower:
+            self.progress.emit(40)
+        elif "scanning for fpga devices" in line_lower:
+            self.progress.emit(50)
+        elif "selected device" in line_lower:
+            self.progress.emit(55)
+        elif "refreshing device" in line_lower:
+            self.progress.emit(60)
+        elif "programming fpga" in line_lower or "configuring" in line_lower:
+            self.progress.emit(70)
+        elif "starting flash" in line_lower:
+            self.progress.emit(75)
+        elif "verifying" in line_lower:
+            self.progress.emit(85)
+        elif "closing" in line_lower:
+            self.progress.emit(90)
+        elif "success" in line_lower or "completed" in line_lower:
+            self.progress.emit(100)
+        elif "executing reset" in line_lower:
+            self.progress.emit(70)
+        elif "asserting reset" in line_lower:
+            self.progress.emit(80)
+        elif "de-asserting reset" in line_lower:
+            self.progress.emit(90)
+        
+        # Error detection - highlight important errors
+        if "jtag/usb cable is disconnected" in line_lower:
+            self.output.emit("")
+            self.output.emit("⚠️ ========================================")
+            self.output.emit("⚠️  CABLE NOT CONNECTED!")
+            self.output.emit("⚠️  Please connect the JTAG/USB cable")
+            self.output.emit("⚠️  and try again.")
+            self.output.emit("⚠️ ========================================")
+        elif "no hardware targets found" in line_lower:
+            self.output.emit("❌ No JTAG cable detected!")
+        elif "no fpga devices found" in line_lower:
+            self.output.emit("❌ FPGA not detected on JTAG chain!")
+
     def _handle_finished(self, exit_code, exit_status=None):
         """Handle process completion."""
         self.is_programming = False
@@ -261,12 +324,31 @@ class FPGAManager(QObject):
         
         self.output.emit("=" * 60)
         if success:
-            msg = f"✓ Programming completed successfully!"
+            if self._current_operation == "reset":
+                msg = "✓ FPGA Reset completed successfully!"
+            else:
+                msg = f"✓ Programming completed successfully!"
             self.output.emit(msg)
             self.progress.emit(100)
         else:
-            msg = f"✗ Programming failed (exit code: {exit_code})"
+            if self._current_operation == "reset":
+                msg = f"✗ FPGA Reset failed (exit code: {exit_code})"
+            else:
+                msg = f"✗ Programming failed (exit code: {exit_code})"
             self.output.emit(msg)
+            self.output.emit("")
+            self.output.emit("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            self.output.emit("  TROUBLESHOOTING CHECKLIST:")
+            self.output.emit("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            self.output.emit("  □ Is the JTAG/USB cable connected?")
+            self.output.emit("  □ Is the FPGA board powered on?")
+            self.output.emit("  □ Is the cable properly seated on both ends?")
+            self.output.emit("  □ Is Vivado Hardware Manager closed?")
+            self.output.emit("  □ Are the USB drivers installed?")
+            if self._current_operation == "reset":
+                self.output.emit("  □ Is the .ltx file matching the current bitstream?")
+                self.output.emit("  □ Does the bitstream have VIO debug core?")
+            self.output.emit("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             self.progress.emit(0)
         self.output.emit("=" * 60)
         
@@ -293,6 +375,11 @@ class FPGAManager(QObject):
 class BitstreamManager:
     """
     Manages a sequence of bitstream files for automated testing.
+    
+    Features:
+    - Load all .bit files from a directory
+    - Circular navigation (next/previous wraps around)
+    - Track current selection
     """
     
     def __init__(self):
@@ -360,3 +447,23 @@ class BitstreamManager:
     def get_all_names(self) -> list:
         """Get list of all bitstream filenames."""
         return [f.name for f in self.files]
+
+    def find_ltx_for_current(self) -> str:
+        """
+        Find the .ltx file corresponding to the current bitstream.
+        
+        Returns:
+            Path to .ltx file if found, empty string otherwise
+        """
+        current = self.current()
+        if not current:
+            return ""
+        
+        # Try same name with .ltx extension
+        base = os.path.splitext(current)[0]
+        ltx_path = base + ".ltx"
+        
+        if os.path.exists(ltx_path):
+            return ltx_path
+        
+        return ""
