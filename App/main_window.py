@@ -25,7 +25,8 @@ from PySide6.QtGui import QFont, QTextCursor
 import config
 from router import UARTRouter
 from fpga_manager import FPGAManager, BitstreamManager
-from sensor_widget import SensorWidget
+# FIX 1: Import the correct class name directly
+from sensor_widget import SensorVisualizationWidget
 from telemetry_widget import TelemetryWidget, TelemetryData
 from aging_analysis_widget import AgingAnalysisWidget
 from serial_thread import get_available_ports
@@ -48,11 +49,11 @@ class MainWindow(QMainWindow):
         self.fpga_manager = FPGAManager()
         self.bitstream_manager = BitstreamManager()
         
-        # State (add these to existing state variables)
+        # State - Rastreamento de todos os 4 tipos de sensores
         self._last_alarm_f = 0
         self._last_alarm_rf = 0
-        self._last_alarm_dm = 0      # NEW
-        self._last_alarm_obi = 0     # NEW
+        self._last_alarm_uart = 0      # UART sensors (alias: DM)
+        self._last_alarm_obi_dmx = 0   # OBI DMX sensors (alias: OBI)
         
         # Build UI
         self._init_ui()
@@ -113,7 +114,8 @@ class MainWindow(QMainWindow):
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         
-        self.sensor_widget = SensorWidget()
+        # FIX 1 (Continued): Instantiate the correct class
+        self.sensor_widget = SensorVisualizationWidget()
         left_layout.addWidget(self.sensor_widget)
         
         # Control tabs below sensors
@@ -160,6 +162,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(right_container, 1)
         
         return tab
+    
+    # ... (Rest of the file remains unchanged, omitted for brevity) ...
+    # Be sure to include the rest of the MainWindow class implementation
     
     def _create_telemetry_tab(self) -> QWidget:
         """Create the telemetry graphs tab."""
@@ -557,6 +562,18 @@ class MainWindow(QMainWindow):
             self._toggle_connection(True)
             self.btn_connect.setChecked(True)
 
+    def _check_new_alarms(self, current: int, previous: int) -> tuple:
+        '''
+        Check for new alarm bits.
+        
+        Returns:
+            tuple: (has_new_alarms: bool, new_bits: int, cleared_bits: int)
+        '''
+        new_bits = current & ~previous      # Bits que eram 0 e agora são 1
+        cleared_bits = previous & ~current  # Bits que eram 1 e agora são 0
+        
+        return (new_bits != 0), new_bits, cleared_bits
+
     # ========== Slot Handlers ==========
 
     @Slot()
@@ -605,56 +622,77 @@ class MainWindow(QMainWindow):
 
     @Slot(dict)
     def _on_sensor_data(self, data: dict):
-        """
+        '''
         Handle incoming sensor data from all 4 sensor types.
         
-        Expected keys in data dict:
-            - alarm_f: int (AM sensors, 32-bit)
-            - alarm_rf: int (LF sensors, 32-bit)
-            - alarm_dm: int (DM sensors, 32-bit)
-            - alarm_obi_dmx: int (OBI DMX sensors, 32-bit)
-            - alarm_*_count: int (number of active alarms per type)
-            - dut_temp: float (FPGA temperature)
-            - dut_volt: float (VCCINT voltage)
-            - dut_slack: int (total active alarms)
-        """
-        # Extract all 4 sensor values
+        CORREÇÃO: Agora processa e passa todos os 4 tipos de sensores.
+        '''
+        # Extract all 4 sensor values (aceita ambas nomenclaturas)
         alarm_f = data.get('alarm_f', 0)
         alarm_rf = data.get('alarm_rf', 0)
-        alarm_dm = data.get('alarm_dm', 0)
-        alarm_obi = data.get('alarm_obi_dmx', 0)
         
-        # Update visualization widget (now handles 4 sensors)
-        self.sensor_widget.updateSensorData(alarm_f, alarm_rf, alarm_dm, alarm_obi)
+        # UART: aceita 'alarm_dm' ou 'alarm_uart'
+        alarm_uart = data.get('alarm_dm', data.get('alarm_uart', 0))
         
-        # Check for new alarms and log to aging analysis
-        # The aging_widget will handle auto-reprogram if enabled
-        new_alarms = self.aging_widget.check_alarms(alarm_f, alarm_rf)
+        # OBI_DMX: aceita 'alarm_obi_dmx' ou 'alarm_obi'
+        alarm_obi_dmx = data.get('alarm_obi_dmx', data.get('alarm_obi', 0))
         
-        if new_alarms:
+        # Update visualization widget (handles 4 sensors)
+        # NOTA: O sensor_widget usa a interface legacy com nomes DM/OBI
+        self.sensor_widget.updateSensorData(alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx)
+        
+        # Check for NEW alarms across ALL 4 sensor types
+        # Compare with last known values
+        new_alarm_detected = False
+        
+        if alarm_f != self._last_alarm_f:
+            new_f = alarm_f & ~self._last_alarm_f  # Novos bits
+            if new_f:
+                new_alarm_detected = True
+                
+        if alarm_rf != self._last_alarm_rf:
+            new_rf = alarm_rf & ~self._last_alarm_rf
+            if new_rf:
+                new_alarm_detected = True
+                
+        if alarm_uart != self._last_alarm_uart:
+            new_uart = alarm_uart & ~self._last_alarm_uart
+            if new_uart:
+                new_alarm_detected = True
+                
+        if alarm_obi_dmx != self._last_alarm_obi_dmx:
+            new_obi = alarm_obi_dmx & ~self._last_alarm_obi_dmx
+            if new_obi:
+                new_alarm_detected = True
+        
+        # Check for new alarms and log to aging analysis (ALL 4 sensors)
+        # CORREÇÃO: Agora passa todos os 4 tipos
+        new_alarms = self.aging_widget.check_alarms(
+            alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx
+        )
+        
+        # Log if new alarms detected
+        if new_alarm_detected or new_alarms:
+            # Get counts (prefer from data, fallback to calculation)
             f_count = data.get('alarm_f_count', bin(alarm_f).count('1'))
             rf_count = data.get('alarm_rf_count', bin(alarm_rf).count('1'))
-            dm_count = data.get('alarm_dm_count', bin(alarm_dm).count('1'))
-            obi_count = data.get('alarm_obi_count', bin(alarm_obi).count('1'))
-            total = f_count + rf_count + dm_count + obi_count
+            uart_count = data.get('alarm_uart_count', 
+                                data.get('alarm_dm_count', bin(alarm_uart).count('1')))
+            obi_count = data.get('alarm_obi_count', bin(alarm_obi_dmx).count('1'))
+            total = f_count + rf_count + uart_count + obi_count
             
             self.log(
                 f"[AGING] New alarm detected! Total={total} "
-                f"(F={f_count}, RF={rf_count}, DM={dm_count}, OBI={obi_count})"
+                f"(F={f_count}, RF={rf_count}, UART={uart_count}, OBI={obi_count})"
             )
             self.log(f"  F=0x{alarm_f:08X} RF=0x{alarm_rf:08X} "
-                    f"DM=0x{alarm_dm:08X} OBI=0x{alarm_obi:08X}")
+                    f"UART=0x{alarm_uart:08X} OBI=0x{alarm_obi_dmx:08X}")
         
-        # Store last values for all sensors
+        # Store last values for all 4 sensors
         self._last_alarm_f = alarm_f
         self._last_alarm_rf = alarm_rf
-        # Add these attributes if they don't exist:
-        if not hasattr(self, '_last_alarm_dm'):
-            self._last_alarm_dm = 0
-        if not hasattr(self, '_last_alarm_obi'):
-            self._last_alarm_obi = 0
-        self._last_alarm_dm = alarm_dm
-        self._last_alarm_obi = alarm_obi
+        self._last_alarm_uart = alarm_uart
+        self._last_alarm_obi_dmx = alarm_obi_dmx
 
     @Slot(object)
     def _on_stm_frame(self, event):
@@ -668,7 +706,7 @@ class MainWindow(QMainWindow):
 
     @Slot(dict)
     def _on_telemetry_data(self, data: dict):
-        """Handle telemetry data from router."""
+        '''Handle telemetry data from router.'''
         # Update telemetry widget
         self.telemetry_widget.updateFromDict(data)
         

@@ -17,7 +17,7 @@ import json
 import os
 from datetime import datetime
 from dataclasses import dataclass, asdict, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from PySide6.QtCore import QObject, Signal
 
 
@@ -26,7 +26,7 @@ class AgingEvent:
     """A single aging/alarm event record."""
     
     # Timing
-    timestamp: str                    # ISO format timestamp
+    timestamp: Union[datetime, str]   # FIX: Supports datetime object now
     experiment_time_hours: float      # Hours since experiment start
     
     # Radiation (calculated from time)
@@ -53,17 +53,32 @@ class AgingEvent:
     notes: str = ""
     event_type: str = "alarm"         # "alarm", "bitstream_change", "manual"
     
+    def __post_init__(self):
+        # Ensure timestamp is a datetime object if it came as a string
+        if isinstance(self.timestamp, str):
+            try:
+                self.timestamp = datetime.fromisoformat(self.timestamp)
+            except ValueError:
+                # Fallback if parsing fails (shouldn't happen with valid data)
+                pass
+
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        # Convert datetime to string for serialization
+        if isinstance(self.timestamp, datetime):
+            d['timestamp'] = self.timestamp.isoformat()
+        return d
     
     @classmethod
     def from_dict(cls, data: dict) -> 'AgingEvent':
+        # Timestamp string is automatically converted to datetime in __post_init__
         return cls(**data)
     
     def to_csv_row(self) -> List[Any]:
         """Convert to flat CSV row."""
+        ts_str = self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else str(self.timestamp)
         return [
-            self.timestamp,
+            ts_str,
             self.experiment_time_hours,
             self.radiation_dose_krad,
             f"0x{self.alarm_f:08X}",
@@ -199,6 +214,13 @@ class AgingLogger(QObject):
         self._log_file = "aging_log.json"
         self._csv_file = "aging_log.csv"
     
+    def get_all_events(self) -> List[AgingEvent]:
+        """
+        FIX 2: Added missing method required by AgingEventLogWidget.
+        Returns the list of all logged events.
+        """
+        return self.events
+
     def set_current_bitstream(self, name: str, phase_degrees: float, slack_ns: float):
         """Update current bitstream context."""
         self._current_bitstream = name
@@ -276,7 +298,7 @@ class AgingLogger(QObject):
         
         # Create event
         event = AgingEvent(
-            timestamp=now.isoformat(),
+            timestamp=now,  # FIX: Store as datetime object, not string
             experiment_time_hours=self.radiation_model.get_experiment_hours(now),
             radiation_dose_krad=self.radiation_model.get_dose(now),
             alarm_f=alarm_f,
@@ -336,12 +358,14 @@ class AgingLogger(QObject):
         data = []
         for event in self.events:
             if event.event_type == "alarm":
+                # Ensure timestamp is datetime for consistency, though not used in plot directly
+                ts = event.timestamp.isoformat() if isinstance(event.timestamp, datetime) else str(event.timestamp)
                 data.append({
                     'dose_krad': event.radiation_dose_krad,
                     'slack_ns': event.slack_ns,
                     'phase_degrees': event.phase_degrees,
                     'sensors_triggered': len(event.triggered_sensors_f) + len(event.triggered_sensors_rf),
-                    'timestamp': event.timestamp
+                    'timestamp': ts
                 })
         return data
     

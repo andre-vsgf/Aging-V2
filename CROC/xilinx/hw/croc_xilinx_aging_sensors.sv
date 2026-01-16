@@ -30,6 +30,7 @@
 `define WITH_SYSTEM_MONITOR
 `define WITH_TELEMETRY_TX
 
+`define USE_VIO
 
 module croc_xilinx import croc_pkg::*; #(
   localparam int unsigned GpioCount = 4,
@@ -76,16 +77,27 @@ module croc_xilinx import croc_pkg::*; #(
 
   logic status_o;
   logic soc_rst;
-  logic fetch_en;
+  logic vio_fetch_en;
   
-  logic [GpioCount-1:0] gpio_i, gpio_o;
+  logic [GpioCount-1:0] vio_gpio_i, gpio_o;
   
-  // Fixed enable - no VIO needed
-  assign fetch_en = 1'b1;
-  assign gpio_i   = 4'b0;
-  
+  `ifdef USE_VIO
+    vio_0 i_vio(
+        .clk            (  soc_clk      ),
+        .probe_out0     (  vio_reset    ),
+        .probe_out1     (  vio_fetch_en ),
+        .probe_out2     (  vio_gpio_i   ),
+        .probe_in0      (  status_o     ),
+        .probe_in1      (  gpio_o       )
+    );
+  `else
+    assign vio_reset    = '1;
+    assign vio_fetch_en = '1;
+    assign vio_gpio_i   = '0;
+  `endif  
+   
   // Reset when clock not locked
-  assign soc_rst = ~clk_locked;
+  assign soc_rst = ~vio_reset;
 
   // =========================================================================
   // SENSOR ALARM REGISTERS (4 fixed types)
@@ -122,6 +134,8 @@ module croc_xilinx import croc_pkg::*; #(
   // =========================================================================
   // SYSTEM MONITOR
   // =========================================================================
+  
+  wire rst_n;
   
 `ifdef WITH_SYSTEM_MONITOR
   logic [15:0] fpga_temperature;  // °C * 100
@@ -169,7 +183,7 @@ module croc_xilinx import croc_pkg::*; #(
   ) u_telemetry_tx (
     .clk_i          ( soc_clk            ),
     .rst_ni         ( rst_n              ),
-    .enable_i       ( fetch_en           ),
+    .enable_i       ( vio_fetch_en       ),
     .croc_tx_i      ( croc_uart_tx       ),  // Arbitration
     .temperature_i  ( fpga_temperature   ),
     .vccint_i       ( fpga_vccint        ),
@@ -188,8 +202,6 @@ module croc_xilinx import croc_pkg::*; #(
   // =========================================================================
   // RESET SYNCHRONIZER
   // =========================================================================
-
-  wire rst_n;
 
   rstgen i_rstgen (
     .clk_i        ( soc_clk     ),
@@ -270,7 +282,7 @@ module croc_xilinx import croc_pkg::*; #(
     .rst_ni          ( rst_n          ),
     .ref_clk_i       ( rtc_clk_q      ),
     .testmode_i      ( 1'b0           ),
-    .fetch_en_i      ( fetch_en       ),
+    .fetch_en_i      ( vio_fetch_en   ),
     .status_o        ( status_o       ),
 
     .jtag_tck_i      ( jtag_tck_i     ),
@@ -303,13 +315,13 @@ module croc_xilinx import croc_pkg::*; #(
     // UART Sensors
 `ifdef WITH_SENSOR_UART
     .psclk_uart_i    ( psclk_uart_i   ),
-    .alarm_uart_or_o ( alarm_uart_o   ),
+    .alarm_uart_o    ( alarm_uart_o   ),
 `endif
 
     // OBI_DMX Sensors
 `ifdef WITH_SENSOR_OBI_DMX
-    .psclk_obi_dmx_i     ( psclk_obi_dmx_i ),
-    .alarm_obi_dmx_or_o  ( alarm_obi_dmx_o ),
+    .psclk_obi_dmx_i  ( psclk_obi_dmx_i ),
+    .alarm_obi_dmx_o  ( alarm_obi_dmx_o ),
 `endif
 
     // Common sensor clock
@@ -318,7 +330,7 @@ module croc_xilinx import croc_pkg::*; #(
 `endif
 
     // GPIO
-    .gpio_i          ( gpio_i            ),             
+    .gpio_i          ( vio_gpio_i        ),             
     .gpio_o          ( gpio_o            ),            
     .gpio_out_en_o   ( soc_gpio_out_en_o ) 
   );

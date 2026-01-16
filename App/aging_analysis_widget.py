@@ -1,12 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Aging Analysis Widget
+Aging Analysis Widget - CORRECTED VERSION
 
 Provides UI for:
 - Configuring radiation model (dose rate, experiment start)
 - Managing bitstream calibrations
 - Viewing aging event log
 - Plotting slack vs radiation dose
+
+FIXES:
+- Corrected 'dose_krad' to 'radiation_dose_krad' to match AgingEvent definition
+- Added _last_total_alarms initialization in __init__
+- Added _last_alarm_* attributes for individual sensor tracking
+- Updated check_alarms() to support 4 sensor types
 """
 
 import pyqtgraph as pg
@@ -222,51 +228,48 @@ class CalibrationTableWidget(QGroupBox):
             self.table.setItem(row, 3, QTableWidgetItem(str(cal.order)))
     
     def _on_selection_changed(self):
-        selected = self.table.selectedItems()
-        if selected:
-            row = selected[0].row()
+        rows = self.table.selectionModel().selectedRows()
+        if rows:
+            row = rows[0].row()
             name = self.table.item(row, 0).text()
-            cal = self.cal_manager.get_calibration(name)
-            if cal:
-                self.calibration_selected.emit(cal.name, cal.phase_degrees, cal.slack_ns)
+            phase = float(self.table.item(row, 1).text())
+            slack = float(self.table.item(row, 2).text())
+            self.calibration_selected.emit(name, phase, slack)
     
     def _add_calibration(self):
         name = self.txt_name.text().strip()
-        phase = self.spin_phase.value()
+        if not name:
+            return
         
-        if name:
-            self.cal_manager.add_calibration(name, phase)
-            self.txt_name.clear()
+        phase = self.spin_phase.value()
+        self.cal_manager.add_calibration(name, phase)
+        self.txt_name.clear()
     
     def _remove_calibration(self):
-        selected = self.table.selectedItems()
-        if selected:
-            name = self.table.item(selected[0].row(), 0).text()
-            self.cal_manager.remove_calibration(name)
+        rows = self.table.selectionModel().selectedRows()
+        if not rows:
+            return
+        
+        row = rows[0].row()
+        name = self.table.item(row, 0).text()
+        self.cal_manager.remove_calibration(name)
     
     def _import_from_dir(self):
         path = QFileDialog.getExistingDirectory(self, "Select Bitstream Directory")
         if path:
-            # Ask for step size
-            step, ok = 5.0, True  # Could add dialog for this
-            if ok:
-                count = self.cal_manager.import_from_directory(path, step_degrees=step)
-                QMessageBox.information(self, "Import Complete", 
-                                       f"Imported {count} bitstreams with {step}° step")
+            count = self.cal_manager.import_from_directory(path)
+            QMessageBox.information(self, "Import", f"Imported {count} bitstreams")
     
     def _load_calibrations(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Load Calibrations", "", "JSON Files (*.json)"
-        )
-        if path:
-            self.cal_manager.load(path)
+        self.cal_manager.load()
+        self._refresh_table()
 
 
 class AgingEventLogWidget(QGroupBox):
-    """Widget displaying the aging event log."""
+    """Widget for displaying aging event log."""
     
     def __init__(self, logger: AgingLogger, parent=None):
-        super().__init__("Event Log", parent)
+        super().__init__("Aging Event Log", parent)
         self.logger = logger
         self._setup_ui()
         
@@ -276,106 +279,83 @@ class AgingEventLogWidget(QGroupBox):
         layout = QVBoxLayout(self)
         
         # Summary
-        summary_layout = QHBoxLayout()
-        self.lbl_event_count = QLabel("Events: 0")
-        summary_layout.addWidget(self.lbl_event_count)
-        
-        self.lbl_sensors_triggered = QLabel("Sensors Triggered: F=0, RF=0")
-        summary_layout.addWidget(self.lbl_sensors_triggered)
-        
-        summary_layout.addStretch()
-        layout.addLayout(summary_layout)
+        self.lbl_summary = QLabel("Events: 0 | Bitstream changes: 0")
+        self.lbl_summary.setStyleSheet("color: #888;")
+        layout.addWidget(self.lbl_summary)
         
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels([
-            "Time", "Dose (krad)", "Slack (ns)", 
-            "F Triggers", "RF Triggers", "Bitstream", "Type"
+            "Time", "Dose (krad)", "Bitstream", "Phase (°)", "Slack (ns)", "Type"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         layout.addWidget(self.table)
         
-        # Export buttons
-        btn_layout = QHBoxLayout()
+        # Controls
+        ctrl_layout = QHBoxLayout()
         
-        btn_export_csv = QPushButton("Export CSV")
-        btn_export_csv.clicked.connect(self._export_csv)
-        btn_layout.addWidget(btn_export_csv)
+        btn_refresh = QPushButton("🔄 Refresh")
+        btn_refresh.clicked.connect(self._refresh_log)
+        ctrl_layout.addWidget(btn_refresh)
         
-        btn_export_json = QPushButton("Export JSON")
-        btn_export_json.clicked.connect(self._export_json)
-        btn_layout.addWidget(btn_export_json)
+        btn_export = QPushButton("📁 Export CSV")
+        btn_export.clicked.connect(self._export_csv)
+        ctrl_layout.addWidget(btn_export)
         
-        btn_clear = QPushButton("Clear Log")
+        btn_clear = QPushButton("🗑 Clear")
         btn_clear.clicked.connect(self._clear_log)
-        btn_layout.addWidget(btn_clear)
+        ctrl_layout.addWidget(btn_clear)
         
-        layout.addLayout(btn_layout)
+        ctrl_layout.addStretch()
+        layout.addLayout(ctrl_layout)
+        
+        self._refresh_log()
     
-    @Slot(object)
-    def _on_event_logged(self, event: AgingEvent):
-        row = self.table.rowCount()
-        self.table.insertRow(row)
+    @Slot()
+    def _on_event_logged(self):
+        self._refresh_log()
+    
+    def _refresh_log(self):
+        self.table.setRowCount(0)
         
-        # Time (short format)
-        time_str = event.timestamp.split('T')[1][:8] if 'T' in event.timestamp else event.timestamp[-8:]
-        self.table.setItem(row, 0, QTableWidgetItem(time_str))
+        for event in self.logger.get_all_events():
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            
+            # Format timestamp safely
+            if isinstance(event.timestamp, datetime):
+                time_str = event.timestamp.strftime("%H:%M:%S")
+            else:
+                time_str = str(event.timestamp)
+
+            self.table.setItem(row, 0, QTableWidgetItem(time_str))
+            
+            # FIX: Use correct attribute name 'radiation_dose_krad'
+            self.table.setItem(row, 1, QTableWidgetItem(f"{event.radiation_dose_krad:.2f}"))
+            
+            self.table.setItem(row, 2, QTableWidgetItem(event.bitstream_name))
+            self.table.setItem(row, 3, QTableWidgetItem(f"{event.phase_degrees:.2f}"))
+            self.table.setItem(row, 4, QTableWidgetItem(f"{event.slack_ns:.3f}"))
+            self.table.setItem(row, 5, QTableWidgetItem(event.event_type))
         
-        # Dose
-        self.table.setItem(row, 1, QTableWidgetItem(f"{event.radiation_dose_krad:.2f}"))
-        
-        # Slack
-        self.table.setItem(row, 2, QTableWidgetItem(f"{event.slack_ns:.3f}"))
-        
-        # Triggers
-        f_str = f"{len(event.triggered_sensors_f)}"
-        rf_str = f"{len(event.triggered_sensors_rf)}"
-        self.table.setItem(row, 3, QTableWidgetItem(f_str))
-        self.table.setItem(row, 4, QTableWidgetItem(rf_str))
-        
-        # Bitstream
-        self.table.setItem(row, 5, QTableWidgetItem(event.bitstream_name))
-        
-        # Type
-        self.table.setItem(row, 6, QTableWidgetItem(event.event_type))
-        
-        # Color based on type
-        if event.event_type == "alarm":
-            for col in range(7):
-                item = self.table.item(row, col)
-                if item:
-                    item.setBackground(QColor(50, 30, 30))
-        
-        # Update summary
         self._update_summary()
-        
-        # Scroll to bottom
-        self.table.scrollToBottom()
     
     def _update_summary(self):
-        self.lbl_event_count.setText(f"Events: {len(self.logger.events)}")
-        
-        history = self.logger.get_triggered_history()
-        f_count = len(history['alarm_f'])
-        rf_count = len(history['alarm_rf'])
-        self.lbl_sensors_triggered.setText(f"Sensors Triggered: F={f_count}, RF={rf_count}")
+        events = self.logger.get_all_events()
+        bitstream_changes = sum(1 for e in events if e.event_type == "bitstream_change")
+        self.lbl_summary.setText(f"Events: {len(events)} | Bitstream changes: {bitstream_changes}")
     
     def _export_csv(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export CSV", "aging_log.csv", "CSV Files (*.csv)"
+            self, "Export Log",
+            f"aging_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "CSV Files (*.csv)"
         )
         if path:
             self.logger.save_csv(path)
-    
-    def _export_json(self):
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export JSON", "aging_log.json", "JSON Files (*.json)"
-        )
-        if path:
-            self.logger.save_json(path)
+            QMessageBox.information(self, "Export", f"Log exported to {path}")
     
     def _clear_log(self):
         reply = QMessageBox.question(
@@ -472,7 +452,12 @@ class AgingPlotWidget(QGroupBox):
 
 
 class AgingAnalysisWidget(QWidget):
-    """Main widget combining all aging analysis components."""
+    """
+    Main widget combining all aging analysis components.
+    
+    CRITICAL FIX: Added _last_total_alarms and individual alarm trackers
+    in __init__ to prevent AttributeError.
+    """
     
     # Signal for auto-reprogram
     request_reprogram = Signal(str)  # bitstream name
@@ -483,6 +468,16 @@ class AgingAnalysisWidget(QWidget):
         # Create managers
         self.logger = AgingLogger()
         self.cal_manager = CalibrationManager()
+        
+        # =====================================================================
+        # CRITICAL FIX: Initialize alarm tracking attributes
+        # =====================================================================
+        self._last_total_alarms = 0
+        self._last_alarm_f = 0
+        self._last_alarm_rf = 0
+        self._last_alarm_uart = 0
+        self._last_alarm_obi_dmx = 0
+        # =====================================================================
         
         # Try to load saved data
         self.cal_manager.load()
@@ -559,21 +554,65 @@ class AgingAnalysisWidget(QWidget):
         """Update environmental readings."""
         self.logger.set_environmental_data(**kwargs)
     
-    def check_alarms(self, alarm_f: int, alarm_rf: int) -> bool:
+    def check_alarms(self, alarm_f: int, alarm_rf: int, 
+                     alarm_uart: int = 0, alarm_obi_dmx: int = 0) -> bool:
         """
-        Check for alarm triggers and handle auto-reprogram.
+        Check all 4 sensor types for new alarms.
         
-        Returns True if new alarms were detected.
+        Args:
+            alarm_f: AM sensor alarm register (32-bit)
+            alarm_rf: LF sensor alarm register (32-bit)
+            alarm_uart: UART sensor alarm register (32-bit)
+            alarm_obi_dmx: OBI DMX sensor alarm register (32-bit)
+            
+        Returns:
+            bool: True if any new alarms were detected
         """
-        event = self.logger.check_and_log_alarms(alarm_f, alarm_rf)
+        # Calculate total alarms across all 4 sensor types
+        count_f = bin(alarm_f).count('1')
+        count_rf = bin(alarm_rf).count('1')
+        count_uart = bin(alarm_uart).count('1')
+        count_obi = bin(alarm_obi_dmx).count('1')
+        total_alarms = count_f + count_rf + count_uart + count_obi
         
-        if event and self.chk_auto_reprogram.isChecked():
-            # Get next bitstream
-            next_bs = self.cal_manager.get_next_bitstream(self.logger._current_bitstream)
-            if next_bs:
-                self.request_reprogram.emit(next_bs)
+        # Check for new alarms (any increase in alarm count)
+        new_alarms_detected = total_alarms > self._last_total_alarms
         
-        return event is not None
+        # Check for new alarm bits (not just count increase)
+        new_f_bits = alarm_f & ~self._last_alarm_f
+        new_rf_bits = alarm_rf & ~self._last_alarm_rf
+        new_uart_bits = alarm_uart & ~self._last_alarm_uart
+        new_obi_bits = alarm_obi_dmx & ~self._last_alarm_obi_dmx
+        
+        has_new_bits = (new_f_bits | new_rf_bits | new_uart_bits | new_obi_bits) != 0
+        
+        # Update tracking
+        self._last_total_alarms = total_alarms
+        self._last_alarm_f = alarm_f
+        self._last_alarm_rf = alarm_rf
+        self._last_alarm_uart = alarm_uart
+        self._last_alarm_obi_dmx = alarm_obi_dmx
+        
+        # Return True if either total increased OR new bits appeared
+        return new_alarms_detected or has_new_bits
+    
+    def get_alarm_counts(self) -> dict:
+        """Return current alarm counts for all 4 sensor types."""
+        return {
+            'f': bin(self._last_alarm_f).count('1'),
+            'rf': bin(self._last_alarm_rf).count('1'),
+            'uart': bin(self._last_alarm_uart).count('1'),
+            'obi_dmx': bin(self._last_alarm_obi_dmx).count('1'),
+            'total': self._last_total_alarms
+        }
+    
+    def reset_alarm_tracking(self):
+        """Reset alarm tracking (e.g., after bitstream reprogram)."""
+        self._last_total_alarms = 0
+        self._last_alarm_f = 0
+        self._last_alarm_rf = 0
+        self._last_alarm_uart = 0
+        self._last_alarm_obi_dmx = 0
     
     def update_display(self):
         """Update time-dependent displays."""

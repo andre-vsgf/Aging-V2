@@ -52,6 +52,55 @@
 #define READ_ALARM_UART()   SENSOR_REG(SENSOR_ALARM_UART_OFFSET)
 #define READ_STATUS()       SENSOR_REG(SENSOR_STATUS_OFFSET)
 
+// Integer square root (example workload)
+static uint32_t isqrt_u32(uint32_t n) {
+  uint32_t res = 0;
+  uint32_t bit = (uint32_t)1u << 30;
+
+  while (bit > n) bit >>= 2;
+
+  while (bit) {
+    if (n >= res + bit) {
+      n -= res + bit;
+      res = (res >> 1) + bit;
+    } else {
+      res >>= 1;
+    }
+    bit >>= 2;
+  }
+  return res;
+}
+
+volatile uint32_t sink;
+
+static inline void burn_regs(void) {
+  uint32_t a = 0x12345678u;
+  uint32_t b = 0x9abcdef0u;
+  uint32_t c = 0x0f0f0f0fu;
+
+  for (uint32_t i = 0; i < 200000u; i++) {
+    a = a * 1664525u + 1013904223u;
+    b ^= a + 0x9e3779b9u;
+    c += (b ^ (a >> 3));
+
+    sink = a ^ b ^ c;
+    asm volatile("" ::: "memory");
+  }
+}
+
+static inline void gpio_selftest(void) {
+  gpio_set_direction(0xFFFF, 0x000F); // lowest 4 as outputs
+  gpio_enable(0x00FF);                // enable lowest 8
+
+  gpio_write(0x0A);
+  asm volatile("nop; nop; nop; nop; nop;");
+  printf("GPIO (expect 0xA0): 0x%x\r\n", gpio_read());
+
+  gpio_toggle(0x0F);
+  asm volatile("nop; nop; nop; nop; nop;");
+  printf("GPIO (expect 0x50): 0x%x\r\n", gpio_read());
+}
+
 // ===========================================================================
 // Utility: Count set bits (population count)
 // ===========================================================================
@@ -96,6 +145,9 @@ int main() {
     printf("================================\r\n");
     printf("\r\n");
 
+    gpio_selftest();
+    uart_write_flush();
+
     // Main monitoring loop
     while (1) {
         // Read sensor data from OBI peripheral
@@ -104,6 +156,8 @@ int main() {
         uint32_t alarm_obi  = READ_ALARM_OBI();
         uint32_t alarm_uart = READ_ALARM_UART();
         
+        uart_write_flush();
+        burn_regs();
         // Output format matching router.py expectations:
         // "F: 0xXXXXXXXX | RF: 0xXXXXXXXX | OBI: 0xXXXXXXXX | UART: 0xXXXXXXXX"
         printf("F: 0x");
@@ -124,4 +178,15 @@ int main() {
     }
     
     return 0;
+}
+
+// Minimal memcpy implementation for bare-metal
+typedef unsigned long size_t;
+void *memcpy(void *dest, const void *src, size_t n) {
+    char *d = (char *)dest;
+    const char *s = (const char *)src;
+    while (n--) {
+        *d++ = *s++;
+    }
+    return dest;
 }

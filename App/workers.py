@@ -1,8 +1,17 @@
 """
-Workers para o Sistema de Burn-in
+Workers para o Sistema de Burn-in - VERSÃO CORRIGIDA
 
-Atualizado para o novo formato de dados do CROC (texto):
-  "F: 0x<alarm_f> | RF: 0x<alarm_rf>"
+Atualizado para suporte completo a 4 tipos de sensores:
+- F (AM sensors)
+- RF (LF sensors)
+- UART sensors (alias: DM)
+- OBI_DMX sensors (alias: OBI)
+
+CORREÇÕES APLICADAS:
+1. CROCWorker agora rastreia todos os 4 tipos de sensores
+2. get_alarm_data() retorna 4 valores
+3. get_latest_data() calcula slack corretamente (soma de todos os alarmes)
+4. Nomenclatura consistente com router.py
 """
 
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
@@ -176,9 +185,18 @@ class STMWorker(QObject):
 
 
 # =================================================================
-#   WORKER 3: CROC (FPGA DUT) - Texto-Based
+#   WORKER 3: CROC (FPGA DUT) - CORRIGIDO PARA 4 SENSORES
 # =================================================================
 class CROCWorker(QObject):
+    """
+    Worker para monitoramento do CROC FPGA com suporte a 4 tipos de sensores.
+    
+    CORREÇÃO: Agora rastreia todos os 4 tipos de sensores:
+    - F (AM sensors)
+    - RF (LF sensors)
+    - UART sensors (alias: DM)
+    - OBI_DMX sensors (alias: OBI)
+    """
     log_message = Signal(str)
     
     def __init__(self, router):
@@ -186,22 +204,43 @@ class CROCWorker(QObject):
         self.router = router
         self.is_running = False
         
-        # Dados do sensor (novo formato)
-        self._alarm_f = 0
-        self._alarm_rf = 0
+        # =====================================================================
+        # DADOS DOS 4 TIPOS DE SENSORES (CORRIGIDO)
+        # =====================================================================
+        
+        # Valores brutos dos registradores de alarme (32 bits cada)
+        self._alarm_f = 0           # AM sensors
+        self._alarm_rf = 0          # LF sensors
+        self._alarm_uart = 0        # UART sensors (também acessível como _alarm_dm)
+        self._alarm_obi_dmx = 0     # OBI DMX sensors (também acessível como _alarm_obi)
+        
+        # Contagem de alarmes ativos por tipo
         self._alarm_f_count = 0
         self._alarm_rf_count = 0
+        self._alarm_uart_count = 0
+        self._alarm_obi_count = 0
         
-        # Compatibilidade
-        self._temp = 0.0
-        self._volt = 0.0
+        # Dados ambientais
+        self._temp = 0.0            # Temperatura da FPGA
+        self._volt = 0.0            # VCCINT
+        
+    # Propriedades de alias para compatibilidade com código legado
+    @property
+    def _alarm_dm(self):
+        """Alias para _alarm_uart (compatibilidade legado)"""
+        return self._alarm_uart
+    
+    @property
+    def _alarm_obi(self):
+        """Alias para _alarm_obi_dmx (compatibilidade legado)"""
+        return self._alarm_obi_dmx
         
     @Slot()
     def start(self):
         self.is_running = True
         # Conecta ao sinal de dados do Router
         self.router.aging_data_received.connect(self._on_aging_data)
-        self.log_message.emit("CROC Worker iniciado (Monitoramento FPGA via Texto).")
+        self.log_message.emit("CROC Worker iniciado (Monitoramento FPGA - 4 Sensores).")
 
     @Slot()
     def stop(self):
@@ -214,42 +253,134 @@ class CROCWorker(QObject):
     @Slot(dict)
     def _on_aging_data(self, data):
         """
-        Recebe dados parseados do Router.
+        Recebe dados parseados do Router - CORRIGIDO para 4 sensores.
         
-        Formato esperado do dict:
+        Formato esperado do dict (suporta ambas nomenclaturas):
         {
+            # Nomes primários (matching RTL)
             'alarm_f': int,
             'alarm_rf': int,
+            'alarm_uart': int,
+            'alarm_obi_dmx': int,
+            
+            # OU nomes legados (para compatibilidade)
+            'alarm_dm': int,      # Alias para alarm_uart
+            'alarm_obi': int,     # Alias para alarm_obi_dmx
+            
+            # Contagens
             'alarm_f_count': int,
             'alarm_rf_count': int,
+            'alarm_uart_count': int ou 'alarm_dm_count': int,
+            'alarm_obi_count': int,
+            
+            # Dados ambientais
             'dut_temp': float,
             'dut_volt': float,
-            'dut_slack': int,
-            'raw_alarm': int
         }
         """
         if not self.is_running: 
             return
         
+        # Valores brutos - aceita ambas nomenclaturas
         self._alarm_f = data.get('alarm_f', 0)
         self._alarm_rf = data.get('alarm_rf', 0)
-        self._alarm_f_count = data.get('alarm_f_count', 0)
-        self._alarm_rf_count = data.get('alarm_rf_count', 0)
-        self._temp = data.get('dut_temp', 0.0)
-        self._volt = data.get('dut_volt', 0.0)
+        
+        # UART: aceita 'alarm_uart' ou 'alarm_dm' (legado)
+        self._alarm_uart = data.get('alarm_uart', data.get('alarm_dm', 0))
+        
+        # OBI_DMX: aceita 'alarm_obi_dmx' ou 'alarm_obi' (legado)
+        self._alarm_obi_dmx = data.get('alarm_obi_dmx', data.get('alarm_obi', 0))
+        
+        # Contagens - com fallback para cálculo se não fornecido
+        self._alarm_f_count = data.get('alarm_f_count', bin(self._alarm_f).count('1'))
+        self._alarm_rf_count = data.get('alarm_rf_count', bin(self._alarm_rf).count('1'))
+        self._alarm_uart_count = data.get('alarm_uart_count', 
+                                          data.get('alarm_dm_count', 
+                                                   bin(self._alarm_uart).count('1')))
+        self._alarm_obi_count = data.get('alarm_obi_count', 
+                                          bin(self._alarm_obi_dmx).count('1'))
+        
+        # Dados ambientais
+        self._temp = data.get('dut_temp', data.get('fpga_temp', 0.0))
+        self._volt = data.get('dut_volt', data.get('vccint', 0.0))
 
     def get_latest_data(self):
         """
         Retorna (Temp, Slack, Vcc_Internal) para o Logger/Gráfico.
         
-        Slack = número total de alarmes ativos (bits em 1)
+        Slack = número total de alarmes ativos em TODOS os 4 tipos de sensores
+        
+        CORREÇÃO: Agora soma alarmes de todos os 4 tipos, não apenas F e RF.
         """
-        slack = self._alarm_f_count + self._alarm_rf_count
-        return self._temp, slack, self._volt
+        # Soma de alarmes de TODOS os tipos
+        total_alarms = (self._alarm_f_count + 
+                       self._alarm_rf_count + 
+                       self._alarm_uart_count + 
+                       self._alarm_obi_count)
+        
+        return self._temp, total_alarms, self._volt
     
     def get_alarm_data(self):
-        """Retorna os valores brutos dos registradores de alarme"""
-        return self._alarm_f, self._alarm_rf
+        """
+        Retorna os valores brutos dos registradores de alarme de todos os 4 tipos.
+        
+        Returns:
+            tuple: (alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx)
+            
+        CORREÇÃO: Agora retorna 4 valores em vez de 2.
+        """
+        return (self._alarm_f, self._alarm_rf, 
+                self._alarm_uart, self._alarm_obi_dmx)
+    
+    def get_alarm_counts(self):
+        """
+        Retorna as contagens de alarmes ativos para todos os 4 tipos.
+        
+        Returns:
+            dict: {
+                'f': int, 'rf': int, 'uart': int, 'obi_dmx': int,
+                'dm': int (alias), 'obi': int (alias),
+                'total': int
+            }
+        """
+        return {
+            # Nomes primários
+            'f': self._alarm_f_count,
+            'rf': self._alarm_rf_count,
+            'uart': self._alarm_uart_count,
+            'obi_dmx': self._alarm_obi_count,
+            # Aliases para compatibilidade
+            'dm': self._alarm_uart_count,
+            'obi': self._alarm_obi_count,
+            # Total
+            'total': (self._alarm_f_count + self._alarm_rf_count + 
+                     self._alarm_uart_count + self._alarm_obi_count)
+        }
+    
+    def get_all_alarm_data(self):
+        """
+        Retorna todos os dados de alarme em formato de dicionário.
+        
+        Útil para logging detalhado e análise.
+        """
+        return {
+            # Valores brutos
+            'alarm_f': self._alarm_f,
+            'alarm_rf': self._alarm_rf,
+            'alarm_uart': self._alarm_uart,
+            'alarm_obi_dmx': self._alarm_obi_dmx,
+            # Aliases
+            'alarm_dm': self._alarm_uart,
+            'alarm_obi': self._alarm_obi_dmx,
+            # Contagens
+            'count_f': self._alarm_f_count,
+            'count_rf': self._alarm_rf_count,
+            'count_uart': self._alarm_uart_count,
+            'count_obi': self._alarm_obi_count,
+            # Ambientais
+            'temperature': self._temp,
+            'voltage': self._volt,
+        }
 
     def send_manual_command(self, cmd: str):
         """Envia texto puro + Enter para o terminal do CROC"""
@@ -258,11 +389,14 @@ class CROCWorker(QObject):
 
 
 # =================================================================
-#   SEQUENCIADOR
+#   SEQUENCIADOR - CORRIGIDO PARA 4 SENSORES
 # =================================================================
 from logger import DataLogger 
 
 class TestSequencer(QObject):
+    """
+    Sequenciador de testes - Corrigido para suportar 4 tipos de sensores.
+    """
     log_message = Signal(str)
     plot_data_update = Signal(dict)
     test_finished = Signal()
@@ -325,25 +459,54 @@ class TestSequencer(QObject):
         self.test_finished.emit()
 
     def log_data_tick(self):
+        """
+        Tick de logging - CORRIGIDO para incluir todos os 4 tipos de sensores.
+        """
         if not self.running: return
         try:
-            # Pega dados dos workers
+            # Dados do Arduino (forno)
             t_oven, sp, out = self.arduino.get_latest_data()
+            
+            # Dados do STM32 (fonte)
             v_stm, _ = self.stm.get_latest_data()
             
-            # Dados do CROC (agora retorna dados reais!)
-            t_dut, s_dut, v_dut = self.croc.get_latest_data() 
+            # Dados do CROC - agora com 4 sensores!
+            t_dut, total_alarms, v_dut = self.croc.get_latest_data()
+            
+            # Obter contagens individuais
+            alarm_counts = self.croc.get_alarm_counts()
+            
+            # Obter valores brutos dos alarmes
+            alarm_f, alarm_rf, alarm_uart, alarm_obi = self.croc.get_alarm_data()
             
             row = {
                 'time_sec': time.time() - self.t0,
+                
+                # Dados do Forno
                 'oven_temp': t_oven, 
                 'oven_setpoint': sp, 
                 'oven_output': out,
+                
+                # Dados da Fonte
                 'psu_voltage': v_stm, 
                 'psu_current': 0.0,
-                'dut_temp': t_dut,     # Temperatura interna (0 por enquanto)
-                'dut_slack': s_dut,    # Total de alarmes ativos
-                'dut_volt': v_dut      # VCCINT (0 por enquanto)
+                
+                # Dados do DUT - Ambiente
+                'dut_temp': t_dut,
+                'dut_volt': v_dut,
+                'dut_slack': total_alarms,  # Total de alarmes (todos os sensores)
+                
+                # NOVO: Dados individuais de cada tipo de sensor
+                'alarm_f': alarm_f,
+                'alarm_rf': alarm_rf,
+                'alarm_uart': alarm_uart,
+                'alarm_obi_dmx': alarm_obi,
+                
+                # NOVO: Contagens por tipo
+                'count_f': alarm_counts['f'],
+                'count_rf': alarm_counts['rf'],
+                'count_uart': alarm_counts['uart'],
+                'count_obi': alarm_counts['obi_dmx'],
             }
             
             # Salva no CSV
