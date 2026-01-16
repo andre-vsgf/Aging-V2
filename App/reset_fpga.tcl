@@ -255,7 +255,7 @@ foreach p $all_probes {
 
 # Try to find reset probe by common names
 set reset_probe ""
-set reset_names {"vio_reset" "reset" "rst" "probe_out0"}
+set reset_names {"vio_reset" "reset" "rst" "probe_out0" "vio_reset_raw"}
 
 foreach name $reset_names {
     set found [get_hw_probes -of_objects $vio -filter "NAME=~*${name}*" -quiet]

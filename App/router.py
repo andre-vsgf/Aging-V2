@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-UART Router for CROC FPGA System - 4 Sensor Types
+UART Router for CROC FPGA System - SIMPLIFIED VERSION
+======================================================
 
-Handles bidirectional communication and parses:
-- CROC firmware output: All 4 sensor types
-- STM32 telemetry: Power supply data
-- FPGA System Monitor: Temperature and voltage
+Fixed 4 sensor types:
+- F (AM sensors) - 32 bits
+- RF (LF sensors) - 32 bits  
+- UART sensors - 32 bits
+- OBI_DMX sensors - 32 bits
 
-Sensor Output Formats Supported:
-  1. Extended (4 sensors): "F: 0x<hex> | RF: 0x<hex> | OBI: 0x<hex> | UART: 0x<hex>"
-  2. Basic (2 sensors): "F: 0x<hex> | RF: 0x<hex>"
-  3. System telemetry: "$SYS,FT,XX.XX,VI,X.XXX,AF,XXXXXXXX,AR,XXXXXXXX,AD,XXXXXXXX,AO,XXXXXXXX*CS"
+Protocols parsed:
+- CROC firmware: "F: 0x... | RF: 0x... | OBI: 0x... | UART: 0x..."
+- STM32 telemetry: "$TEL,Vc,X.XXX,Vi,X.XXX,Io,X.XXX,Et,XX.X,Mt,XX.X*CS"
+- FPGA telemetry: "$SYS,FT,XXXX,VI,XXXX,AF,XXXXXXXX,AR,XXXXXXXX,AU,XXXXXXXX,AO,XXXXXXXX*CS"
+                       (temp*100 hex, mV hex, then 4 sensor alarms in hex)
 """
 
 from PySide6.QtCore import QObject, Signal, Slot, QMutex
@@ -21,15 +24,18 @@ import time
 import re
 
 
+# Routing headers (for sending)
 HEADER_CROC = b'\x10'
 HEADER_STM  = b'\x20'
 
 
 class UARTRouter(QObject):
     """
-    Central UART routing and parsing manager with 4-sensor support.
+    Central UART routing and parsing manager.
+    Simplified for 4 fixed sensor types.
     """
     
+    # Signals
     stm_frame_received = Signal(object)
     log_text_received = Signal(str)
     connection_status = Signal(str)
@@ -49,59 +55,62 @@ class UARTRouter(QObject):
         
         self._rx_buffer = bytearray()
         
-        # Latest telemetry values (all 4 sensor types)
+        # Telemetry data storage
         self._telemetry = {
+            # STM32 data
             'vcore': 0.0,
             'vin': 0.0,
             'iout': 0.0,
             'ext_temp': 0.0,
             'mcu_temp': 0.0,
+            # FPGA data
             'fpga_temp': 0.0,
             'vccint': 0.0,
-            'alarm_f': 0,
-            'alarm_rf': 0,
-            'alarm_dm': 0,
-            'alarm_obi_dmx': 0,
+            # 4 sensor alarms (FIXED)
+            'alarm_f': 0,       # AM sensors
+            'alarm_rf': 0,      # LF sensors
+            'alarm_dm': 0,    # UART sensors
+            'alarm_obi_dmx': 0, # OBI DMX sensors
         }
         
         # =====================================================================
-        # REGEX PATTERNS for parsing sensor data
+        # REGEX PATTERNS
         # =====================================================================
         
-        # Pattern 1: FULL 4-sensor format from helloworld.c
-        # "F: 0x<hex> | RF: 0x<hex> | OBI: 0x<hex> | UART: 0x<hex>"
-        self._sensor_regex_full = re.compile(
-            r'F:\s*0x([0-9A-Fa-f]+)\s*\|\s*'
-            r'RF:\s*0x([0-9A-Fa-f]+)\s*\|\s*'
-            r'OBI:\s*0x([0-9A-Fa-f]+)\s*\|\s*'
-            r'UART:\s*0x([0-9A-Fa-f]+)',
+        # CROC firmware output (4 sensors)
+        # Format: "F: 0x... | RF: 0x... | OBI: 0x... | UART: 0x..."
+        self._sensor_regex_4 = re.compile(
+            r'F:\s*0x([0-9A-Fa-f]+)\s*\|\s*RF:\s*0x([0-9A-Fa-f]+)\s*\|\s*'
+            r'OBI:\s*0x([0-9A-Fa-f]+)\s*\|\s*UART:\s*0x([0-9A-Fa-f]+)',
             re.IGNORECASE
         )
         
-        # Pattern 2: Legacy 2-sensor format (backwards compatibility)
-        # "F: 0x<hex> | RF: 0x<hex>"
-        self._sensor_regex_basic = re.compile(
-            r'F:\s*0x([0-9A-Fa-f]+)\s*\|\s*RF:\s*0x([0-9A-Fa-f]+)',
+        # CROC firmware output (2 sensors - legacy)
+        self._sensor_regex_2 = re.compile(
+            r'F:\s*0x([0-9A-Fa-f]+)\s*\|\s*RF:\s*0x([0-9A-Fa-f]+)(?:\s*$|\s*\r)',
             re.IGNORECASE
         )
         
-        # Pattern 3: STM32 telemetry "$TEL,Vc,X.XXX,Vi,X.XXX,Io,X.XXX,Et,XX.X,Mt,XX.X*CS"
+        # STM32 telemetry
+        # Format: "$TEL,Vc,X.XXX,Vi,X.XXX,Io,X.XXX,Et,XX.X,Mt,XX.X*CS"
         self._stm_telemetry_regex = re.compile(
-            r'\$TEL,Vc,([0-9.]+),Vi,([0-9.]+),Io,([0-9.]+),Et,([0-9.]+),Mt,([0-9.]+)\*([0-9A-Fa-f]{2})',
+            r'\$TEL,Vc,([0-9.]+),Vi,([0-9.]+),Io,([0-9.]+),Et,([0-9.-]+),Mt,([0-9.-]+)\*([0-9A-Fa-f]{2})',
             re.IGNORECASE
         )
         
-        # Pattern 4: FPGA system telemetry (4 sensors)
-        # "$SYS,FT,XX.XX,VI,X.XXX,AF,XXXXXXXX,AR,XXXXXXXX,AD,XXXXXXXX,AO,XXXXXXXX*CS"
+        # FPGA telemetry - HEX format (4 sensors)
+        # Format: "$SYS,FT,XXXX,VI,XXXX,AF,XXXXXXXX,AR,XXXXXXXX,AU,XXXXXXXX,AO,XXXXXXXX*CS"
+        # FT = temperature * 100 in hex (e.g., 0x0FA0 = 4000 = 40.00°C)
+        # VI = voltage in mV in hex (e.g., 0x0352 = 850 = 0.850V)
+        # AF = alarm_f, AR = alarm_rf, AU = alarm_uart, AO = alarm_obi_dmx
         self._sys_telemetry_regex = re.compile(
-            r'\$SYS,FT,([0-9.]+),VI,([0-9.]+),'
-            r'AF,([0-9A-Fa-f]+),AR,([0-9A-Fa-f]+),'
-            r'AD,([0-9A-Fa-f]+),AO,([0-9A-Fa-f]+)\*([0-9A-Fa-f]{2})',
+            r'\$SYS,FT,([0-9A-Fa-f]{4}),VI,([0-9A-Fa-f]{4}),'
+            r'AF,([0-9A-Fa-f]{8}),AR,([0-9A-Fa-f]{8}),'
+            r'AU,([0-9A-Fa-f]{8}),AO,([0-9A-Fa-f]{8})\*([0-9A-Fa-f]{2})',
             re.IGNORECASE
         )
 
     def connect_serial(self, port: str = None, baud: int = None):
-        """Connect to the FPGA serial port."""
         if port is None:
             port = config.FPGA_PORT
         if baud is None:
@@ -121,90 +130,69 @@ class UARTRouter(QObject):
         self.serial.start()
 
     def disconnect_serial(self):
-        """Disconnect from the serial port."""
         if self.serial:
             self.serial.stop()
             self.serial.wait()
             self.serial = None
-            self.is_connected = False
+        self.is_connected = False
+        self.connection_status.emit("Disconnected")
 
-    def is_serial_connected(self) -> bool:
-        """Check if serial port is connected."""
-        return self.is_connected and self.serial is not None
-
-    def _write_raw(self, data: bytes):
-        """Write raw bytes to serial port."""
+    def send_to_croc(self, data: bytes):
+        """Send data to CROC (via router with 0x10 header)"""
         if self.serial and self.is_connected:
-            self.serial.write_data(data)
+            self.route_lock.lock()
+            try:
+                self.serial.write(HEADER_CROC + data)
+                self.last_target = 'croc'
+            finally:
+                self.route_lock.unlock()
 
-    def _send_guarded(self, target_header: bytes, payload: bytes):
-        """Send data with routing header and dead-time management."""
-        self.route_lock.lock()
-        try:
-            if self.last_target != target_header:
-                time.sleep(self.ROUTER_TIMEOUT_S)
-                self.last_target = target_header
-            
-            packet = target_header + payload
-            self._write_raw(packet)
-        finally:
-            self.route_lock.unlock()
+    def send_to_stm(self, data: bytes):
+        """Send data to STM32 (via router with 0x20 header)"""
+        if self.serial and self.is_connected:
+            self.route_lock.lock()
+            try:
+                self.serial.write(HEADER_STM + data)
+                self.last_target = 'stm'
+                self.log_text_received.emit(f"[TX → STM32] {data.decode('utf-8', errors='ignore').strip()}")
+            finally:
+                self.route_lock.unlock()
 
-    def send_to_stm(self, payload: bytes):
-        """Send data to STM32 with header 0x20."""
-        self._send_guarded(HEADER_STM, payload)
+    def send_raw(self, data: bytes):
+        """Send raw data without header (goes to CROC by default)"""
+        if self.serial and self.is_connected:
+            self.serial.write(data)
 
-    def send_to_croc(self, payload: bytes):
-        """Send data to CROC with header 0x10."""
-        self._send_guarded(HEADER_CROC, payload)
-
-    def send_text_to_croc(self, text: str):
-        """Send text command to CROC (adds newline)."""
-        payload = (text + "\n").encode('utf-8')
-        self.send_to_croc(payload)
-
-    @Slot(bytes)
     def _on_data_received(self, data: bytes):
-        """Process received serial data."""
-        self.raw_data_received.emit(data)
+        """Handle incoming serial data"""
         self._rx_buffer.extend(data)
-        self._process_buffer()
-
-    def _process_buffer(self):
-        """Process the RX buffer, extracting complete lines."""
-        while True:
-            newline_idx = -1
-            for i, byte in enumerate(self._rx_buffer):
-                if byte == 0x0A:
-                    newline_idx = i
-                    break
-            
-            if newline_idx >= 0:
-                line_bytes = bytes(self._rx_buffer[:newline_idx])
-                del self._rx_buffer[:newline_idx + 1]
-                self._process_line(line_bytes)
-                continue
-            
-            if len(self._rx_buffer) > 0:
-                first_byte = self._rx_buffer[0]
-                
-                if not (32 <= first_byte <= 126) and first_byte not in [0x0A, 0x0D]:
-                    events = self.parser.feed(bytes(self._rx_buffer))
-                    if events:
-                        self._rx_buffer.clear()
-                        for evt in events:
-                            self._handle_protocol_event(evt)
-                        continue
-            
-            break
+        self.raw_data_received.emit(data)
         
-        if len(self._rx_buffer) > 4096:
-            self._rx_buffer = self._rx_buffer[-1024:]
+        # Process complete lines
+        while b'\n' in self._rx_buffer:
+            idx = self._rx_buffer.index(b'\n')
+            line = bytes(self._rx_buffer[:idx+1])
+            self._rx_buffer = self._rx_buffer[idx+1:]
+            self._process_line(line)
 
-    def _process_line(self, line_bytes: bytes):
-        """Process a complete text line from CROC/STM32."""
+    def _on_error(self, error_msg: str):
+        self.log_text_received.emit(f"[ERROR] {error_msg}")
+        self.connection_status.emit(f"Error: {error_msg}")
+
+    def _on_opened(self, port: str):
+        self.is_connected = True
+        self.connection_status.emit(f"Connected: {port}")
+        self.log_text_received.emit(f"Serial port opened: {port}")
+
+    def _on_closed(self):
+        self.is_connected = False
+        self.connection_status.emit("Disconnected")
+        self.log_text_received.emit("Serial port closed")
+
+    def _process_line(self, line: bytes):
+        """Process a complete line of data"""
         try:
-            line_str = line_bytes.decode('utf-8', errors='ignore').strip()
+            line_str = line.decode('utf-8', errors='ignore').strip()
         except:
             return
         
@@ -212,7 +200,7 @@ class UARTRouter(QObject):
             return
         
         # =====================================================================
-        # 1. Check for STM32 telemetry: $TEL,...*CS
+        # 1. Check STM32 telemetry
         # =====================================================================
         stm_match = self._stm_telemetry_regex.search(line_str)
         if stm_match:
@@ -232,7 +220,6 @@ class UARTRouter(QObject):
                 })
                 
                 self.telemetry_received.emit(self._telemetry.copy())
-                
                 self.log_text_received.emit(
                     f"[STM32] Vc={vcore:.3f}V Vi={vin:.2f}V Io={iout:.3f}A T={ext_temp:.1f}°C"
                 )
@@ -241,170 +228,168 @@ class UARTRouter(QObject):
                 pass
         
         # =====================================================================
-        # 2. Check for FPGA system telemetry: $SYS,...*CS (4 sensors)
+        # 2. Check FPGA telemetry (4 sensors, hex format)
         # =====================================================================
         sys_match = self._sys_telemetry_regex.search(line_str)
         if sys_match:
             try:
-                fpga_temp = float(sys_match.group(1))
-                vccint = float(sys_match.group(2))
+                # Temperature: hex value is temp*100 (e.g., 0x0FA0 = 4000 = 40.00°C)
+                temp_hex = int(sys_match.group(1), 16)
+                fpga_temp = temp_hex / 100.0
+                
+                # VCCINT: hex value in mV (e.g., 0x0352 = 850 = 0.850V)
+                vccint_mv = int(sys_match.group(2), 16)
+                vccint = vccint_mv / 1000.0
+                
+                # 4 sensor alarms
                 alarm_f = int(sys_match.group(3), 16)
                 alarm_rf = int(sys_match.group(4), 16)
-                alarm_dm = int(sys_match.group(5), 16)
-                alarm_obi = int(sys_match.group(6), 16)
+                alarm_uart = int(sys_match.group(5), 16)
+                alarm_obi_dmx = int(sys_match.group(6), 16)
                 
                 self._telemetry.update({
                     'fpga_temp': fpga_temp,
                     'vccint': vccint,
                     'alarm_f': alarm_f,
                     'alarm_rf': alarm_rf,
-                    'alarm_dm': alarm_dm,
-                    'alarm_obi_dmx': alarm_obi,
+                    'alarm_dm': alarm_uart,
+                    'alarm_obi_dmx': alarm_obi_dmx,
                 })
                 
                 self.telemetry_received.emit(self._telemetry.copy())
                 
-                # Also emit as aging data
+                # Count alarms per sensor type
+                count_f = bin(alarm_f).count('1')
+                count_rf = bin(alarm_rf).count('1')
+                count_uart = bin(alarm_uart).count('1')
+                count_obi = bin(alarm_obi_dmx).count('1')
+                total = count_f + count_rf + count_uart + count_obi
+                
                 sensor_data = {
                     'alarm_f': alarm_f,
                     'alarm_rf': alarm_rf,
-                    'alarm_dm': alarm_dm,
-                    'alarm_obi_dmx': alarm_obi,
-                    'alarm_f_count': bin(alarm_f).count('1'),
-                    'alarm_rf_count': bin(alarm_rf).count('1'),
-                    'alarm_dm_count': bin(alarm_dm).count('1'),
-                    'alarm_obi_count': bin(alarm_obi).count('1'),
+                    'alarm_dm': alarm_uart,
+                    'alarm_obi_dmx': alarm_obi_dmx,
+                    'alarm_f_count': count_f,
+                    'alarm_rf_count': count_rf,
+                    'alarm_dm_count': count_uart,
+                    'alarm_obi_count': count_obi,
                     'dut_temp': fpga_temp,
                     'dut_volt': vccint,
-                    'dut_slack': sum([
-                        bin(alarm_f).count('1'),
-                        bin(alarm_rf).count('1'),
-                        bin(alarm_dm).count('1'),
-                        bin(alarm_obi).count('1')
-                    ]),
                 }
                 self.aging_data_received.emit(sensor_data)
                 
-                total_alarms = sensor_data['dut_slack']
                 self.log_text_received.emit(
                     f"[FPGA] T={fpga_temp:.2f}°C VCCINT={vccint:.3f}V "
-                    f"Alarms={total_alarms} (F={sensor_data['alarm_f_count']}, "
-                    f"RF={sensor_data['alarm_rf_count']}, "
-                    f"DM={sensor_data['alarm_dm_count']}, "
-                    f"OBI={sensor_data['alarm_obi_count']})"
+                    f"Alarms={total} (F={count_f}, RF={count_rf}, UART={count_uart}, OBI={count_obi})"
                 )
                 return
             except ValueError:
                 pass
         
         # =====================================================================
-        # 3. Check for FULL 4-sensor format from firmware
-        # "F: 0x... | RF: 0x... | OBI: 0x... | UART: 0x..."
+        # 3. Check CROC firmware output (4 sensors)
         # =====================================================================
-        match_full = self._sensor_regex_full.search(line_str)
-        if match_full:
+        sensor4_match = self._sensor_regex_4.search(line_str)
+        if sensor4_match:
             try:
-                alarm_f = int(match_full.group(1), 16)
-                alarm_rf = int(match_full.group(2), 16)
-                alarm_obi = int(match_full.group(3), 16)
-                alarm_uart = int(match_full.group(4), 16)
+                alarm_f = int(sensor4_match.group(1), 16)
+                alarm_rf = int(sensor4_match.group(2), 16)
+                alarm_obi_dmx = int(sensor4_match.group(3), 16)  # OBI in firmware = OBI_DMX
+                alarm_uart = int(sensor4_match.group(4), 16)     # UART in firmware
+                
+                self._telemetry.update({
+                    'alarm_f': alarm_f,
+                    'alarm_rf': alarm_rf,
+                    'alarm_dm': alarm_uart,
+                    'alarm_obi_dmx': alarm_obi_dmx,
+                })
+                
+                count_f = bin(alarm_f).count('1')
+                count_rf = bin(alarm_rf).count('1')
+                count_uart = bin(alarm_uart).count('1')
+                count_obi = bin(alarm_obi_dmx).count('1')
+                total = count_f + count_rf + count_uart + count_obi
                 
                 sensor_data = {
                     'alarm_f': alarm_f,
                     'alarm_rf': alarm_rf,
-                    'alarm_dm': alarm_obi,      # Map OBI → DM for consistency
-                    'alarm_obi_dmx': alarm_uart, # Map UART → OBI_DMX
-                    'alarm_f_count': bin(alarm_f).count('1'),
-                    'alarm_rf_count': bin(alarm_rf).count('1'),
-                    'alarm_dm_count': bin(alarm_obi).count('1'),
-                    'alarm_obi_count': bin(alarm_uart).count('1'),
-                    'dut_temp': self._telemetry.get('fpga_temp', 0.0),
-                    'dut_volt': self._telemetry.get('vccint', 0.0),
-                    'dut_slack': sum([
-                        bin(alarm_f).count('1'),
-                        bin(alarm_rf).count('1'),
-                        bin(alarm_obi).count('1'),
-                        bin(alarm_uart).count('1')
-                    ]),
+                    'alarm_dm': alarm_uart,
+                    'alarm_obi_dmx': alarm_obi_dmx,
+                    'alarm_f_count': count_f,
+                    'alarm_rf_count': count_rf,
+                    'alarm_dm_count': count_uart,
+                    'alarm_obi_count': count_obi,
+                    'dut_temp': self._telemetry.get('fpga_temp', 0),
+                    'dut_volt': self._telemetry.get('vccint', 0),
                 }
-                
-                # Update telemetry alarms
-                self._telemetry.update({
-                    'alarm_f': alarm_f,
-                    'alarm_rf': alarm_rf,
-                    'alarm_dm': alarm_obi,
-                    'alarm_obi_dmx': alarm_uart
-                })
-                
                 self.aging_data_received.emit(sensor_data)
+                
+                self.log_text_received.emit(
+                    f"[AGING] Total={total} (F={count_f}, RF={count_rf}, UART={count_uart}, OBI={count_obi})"
+                )
+                self.log_text_received.emit(
+                    f"  F=0x{alarm_f:08X} RF=0x{alarm_rf:08X} "
+                    f"UART=0x{alarm_uart:08X} OBI=0x{alarm_obi_dmx:08X}"
+                )
                 return
             except ValueError:
                 pass
         
         # =====================================================================
-        # 4. Check for BASIC 2-sensor format (backwards compatibility)
-        # "F: 0x... | RF: 0x..."
+        # 4. Check CROC firmware output (2 sensors - legacy)
         # =====================================================================
-        match_basic = self._sensor_regex_basic.search(line_str)
-        if match_basic:
+        sensor2_match = self._sensor_regex_2.search(line_str)
+        if sensor2_match:
             try:
-                alarm_f = int(match_basic.group(1), 16)
-                alarm_rf = int(match_basic.group(2), 16)
+                alarm_f = int(sensor2_match.group(1), 16)
+                alarm_rf = int(sensor2_match.group(2), 16)
+                
+                self._telemetry.update({
+                    'alarm_f': alarm_f,
+                    'alarm_rf': alarm_rf,
+                })
+                
+                count_f = bin(alarm_f).count('1')
+                count_rf = bin(alarm_rf).count('1')
+                total = count_f + count_rf
                 
                 sensor_data = {
                     'alarm_f': alarm_f,
                     'alarm_rf': alarm_rf,
                     'alarm_dm': 0,
                     'alarm_obi_dmx': 0,
-                    'alarm_f_count': bin(alarm_f).count('1'),
-                    'alarm_rf_count': bin(alarm_rf).count('1'),
+                    'alarm_f_count': count_f,
+                    'alarm_rf_count': count_rf,
                     'alarm_dm_count': 0,
                     'alarm_obi_count': 0,
-                    'dut_temp': self._telemetry.get('fpga_temp', 0.0),
-                    'dut_volt': self._telemetry.get('vccint', 0.0),
-                    'dut_slack': bin(alarm_f).count('1') + bin(alarm_rf).count('1'),
+                    'dut_temp': self._telemetry.get('fpga_temp', 0),
+                    'dut_volt': self._telemetry.get('vccint', 0),
                 }
-                
-                self._telemetry.update({
-                    'alarm_f': alarm_f,
-                    'alarm_rf': alarm_rf
-                })
-                
                 self.aging_data_received.emit(sensor_data)
+                
+                self.log_text_received.emit(
+                    f"[AGING] Total={total} (F={count_f}, RF={count_rf})"
+                )
                 return
             except ValueError:
                 pass
         
         # =====================================================================
-        # 5. Regular text line (not telemetry/sensor data)
+        # 5. Default: Log as CROC output
         # =====================================================================
-        if not line_str.startswith('$'):
+        if line_str and not line_str.startswith('$'):
             self.log_text_received.emit(f"[CROC] {line_str}")
 
-    def _handle_protocol_event(self, evt):
-        """Handle parsed protocol events."""
-        evt_type = evt[0]
-        
-        if evt_type in ('ok', 'error'):
-            self.stm_frame_received.emit(evt)
-        elif evt_type == 'line':
-            raw_msg = evt[1]
-            clean_msg = "".join(c for c in raw_msg if c.isprintable()).strip()
-            if clean_msg:
-                self.log_text_received.emit(f"[RX] {clean_msg}")
-
-    @Slot(str)
-    def _on_opened(self, port: str):
-        self.is_connected = True
-        self.connection_status.emit(f"Connected: {port}")
-        self.log_message.emit(f"Serial port opened: {port}")
-
-    @Slot()
-    def _on_closed(self):
-        self.is_connected = False
-        self.connection_status.emit("Disconnected")
-        self.log_message.emit("Serial port closed")
-
-    @Slot(str)
-    def _on_error(self, msg: str):
-        self.log_message.emit(f"Serial error: {msg}")
+    def get_telemetry(self):
+        """Return current telemetry data"""
+        return self._telemetry.copy()
+    
+    def get_sensor_counts(self):
+        """Return alarm counts for all 4 sensor types"""
+        return {
+            'f': bin(self._telemetry.get('alarm_f', 0)).count('1'),
+            'rf': bin(self._telemetry.get('alarm_rf', 0)).count('1'),
+            'uart': bin(self._telemetry.get('alarm_dm', 0)).count('1'),
+            'obi_dmx': bin(self._telemetry.get('alarm_obi_dmx', 0)).count('1'),
+        }

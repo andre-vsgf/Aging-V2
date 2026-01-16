@@ -1,368 +1,312 @@
 # -*- coding: utf-8 -*-
 """
-Sensor Visualization Widget - 4 Aging Sensor Types
+Sensor Display Widget - 4 Sensor Types with Backward Compatibility
+===================================================================
 
-Provides a visual grid representation of all 4 sensor alarm registers:
-- ALARM_F (AM - Accelerated Metal, 32 bits)
-- ALARM_RF (LF - Low Frequency, 32 bits)
-- ALARM_DM (Debug Module sensors, 32 bits)
-- ALARM_OBI_DMX (OBI Demux sensors, variable width displayed as 32 bits)
+Displays 4 sensor grids:
+- F (AM sensors) - 32 bits
+- RF (LF sensors) - 32 bits
+- UART sensors (called DM in legacy interface) - 32 bits
+- OBI_DMX sensors (called OBI in legacy interface) - 32 bits
+
+Sensors that are not instantiated are shown in GRAY.
+Active sensors show green (OK) or red (ALARM).
+
+BACKWARD COMPATIBILITY:
+- updateSensorData(alarm_f, alarm_rf, alarm_dm, alarm_obi) - legacy method
+- update_from_data(data_dict) - new method
 """
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
     QLabel, QFrame, QGroupBox, QSizePolicy
 )
-from PySide6.QtCore import Qt, Signal, Slot, QSize
-from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QFont
+from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtGui import QColor, QPalette, QFont
 
 
-class SensorCell(QWidget):
-    """
-    A single sensor indicator cell.
-    Shows green when inactive (0), red when active (1), gray when disabled.
-    """
+class SensorLED(QFrame):
+    """Single sensor LED indicator"""
     
-    def __init__(self, index: int, parent=None):
+    def __init__(self, sensor_id: int, parent=None):
         super().__init__(parent)
-        self.index = index
-        self.active = False
-        self.enabled = True
-        self.setMinimumSize(20, 20)
-        self.setMaximumSize(30, 30)
-        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.setToolTip(f"Bit {index}")
-    
-    def setActive(self, active: bool):
-        """Set the sensor state and trigger repaint."""
-        if self.active != active:
-            self.active = active
-            self.update()
-    
-    def setEnabled(self, enabled: bool):
-        """Set whether the sensor is enabled (gray if disabled)."""
-        if self.enabled != enabled:
-            self.enabled = enabled
-            self.update()
-    
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        self.sensor_id = sensor_id
+        self._state = 'inactive'  # 'inactive', 'ok', 'alarm'
         
-        pen = QPen(QColor(80, 80, 80))
-        pen.setWidth(1)
-        painter.setPen(pen)
+        self.setFixedSize(20, 20)
+        self.setFrameStyle(QFrame.Box | QFrame.Plain)
+        self.setLineWidth(1)
+        self.setToolTip(f"Sensor {sensor_id}")
         
-        if not self.enabled:
-            brush = QBrush(QColor(60, 60, 60))  # Dark gray
-        elif self.active:
-            brush = QBrush(QColor(220, 53, 69))  # Red
+        self._update_color()
+    
+    def set_state(self, state: str):
+        """Set LED state: 'inactive', 'ok', or 'alarm'"""
+        if state != self._state:
+            self._state = state
+            self._update_color()
+    
+    def _update_color(self):
+        if self._state == 'inactive':
+            color = QColor(128, 128, 128)  # Gray
+        elif self._state == 'ok':
+            color = QColor(50, 200, 50)    # Green
+        elif self._state == 'alarm':
+            color = QColor(255, 50, 50)    # Red
         else:
-            brush = QBrush(QColor(40, 167, 69))  # Green
+            color = QColor(128, 128, 128)  # Default gray
         
-        painter.setBrush(brush)
-        
-        margin = 2
-        painter.drawRoundedRect(
-            margin, margin, 
-            self.width() - 2*margin, 
-            self.height() - 2*margin,
-            3, 3
-        )
-        
-        painter.end()
+        palette = self.palette()
+        palette.setColor(QPalette.Window, color)
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
 
 
-class SensorRegisterWidget(QWidget):
-    """
-    Displays a 32-bit register as an 8x4 grid of sensor cells.
-    Can be set to disabled (gray) state for inactive sensors.
-    """
+class SensorGrid(QGroupBox):
+    """Grid of 32 sensor LEDs for one sensor type"""
     
-    def __init__(self, title: str, enabled: bool = True, parent=None):
-        super().__init__(parent)
-        self.title = title
-        self.cells = []
-        self._value = 0
-        self._enabled = enabled
-        self._setup_ui()
-    
-    def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        layout.setSpacing(5)
+    def __init__(self, title: str, sensor_type: str, parent=None):
+        super().__init__(title, parent)
+        self.sensor_type = sensor_type
+        self._is_active = False
+        self._alarm_value = 0
         
-        # Title with value display
-        self.title_label = QLabel(f"{self.title}: 0x00000000")
-        self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
-        layout.addWidget(self.title_label)
+        self.leds = []
         
-        # Count display
-        self.count_label = QLabel("Active: 0 / 32")
-        self.count_label.setAlignment(Qt.AlignCenter)
-        self.count_label.setStyleSheet("color: #888;")
-        layout.addWidget(self.count_label)
+        layout = QGridLayout()
+        layout.setSpacing(2)
+        layout.setContentsMargins(5, 15, 5, 5)
         
-        # Grid of sensor cells (8 columns x 4 rows = 32 bits)
-        grid_widget = QWidget()
-        grid = QGridLayout(grid_widget)
-        grid.setSpacing(2)
-        grid.setContentsMargins(5, 5, 5, 5)
-        
+        # Create 32 LEDs in 4x8 grid
         for i in range(32):
             row = i // 8
-            col = 7 - (i % 8)
-            bit_index = 31 - i
-            
-            cell = SensorCell(bit_index)
-            cell.setEnabled(self._enabled)
-            self.cells.append(cell)
-            grid.addWidget(cell, row, col)
+            col = i % 8
+            led = SensorLED(i)
+            self.leds.append(led)
+            layout.addWidget(led, row, col)
         
-        self.cells = list(reversed(self.cells))
+        # Status label
+        self._status_label = QLabel("Inactive")
+        self._status_label.setAlignment(Qt.AlignCenter)
+        self._status_label.setStyleSheet("color: gray; font-size: 10px;")
+        layout.addWidget(self._status_label, 4, 0, 1, 8)
         
-        layout.addWidget(grid_widget)
+        self.setLayout(layout)
+        self.setMinimumWidth(180)
         
-        # Bit labels row
-        bit_labels = QHBoxLayout()
-        for i in [31, 24, 16, 8, 0]:
-            lbl = QLabel(str(i))
-            lbl.setAlignment(Qt.AlignCenter)
-            lbl.setStyleSheet("color: #666; font-size: 8pt;")
-            bit_labels.addWidget(lbl)
-            if i > 0:
-                bit_labels.addStretch()
-        layout.addLayout(bit_labels)
-        
-        if not self._enabled:
-            self._apply_disabled_style()
+    def set_active(self, active: bool):
+        """Set whether this sensor type is instantiated"""
+        self._is_active = active
+        self._update_display()
     
-    def _apply_disabled_style(self):
-        """Apply gray styling for disabled state."""
-        self.title_label.setStyleSheet("font-weight: bold; font-size: 11pt; color: #666;")
-        self.count_label.setText("Disabled")
-        self.count_label.setStyleSheet("color: #555; font-style: italic;")
+    def set_alarm_value(self, value: int):
+        """Set the 32-bit alarm register value"""
+        self._alarm_value = value
+        self._update_display()
     
-    def setRegisterEnabled(self, enabled: bool):
-        """Enable or disable the register display."""
-        self._enabled = enabled
-        for cell in self.cells:
-            cell.setEnabled(enabled)
-        
-        if not enabled:
-            self._apply_disabled_style()
+    def _update_display(self):
+        if not self._is_active:
+            # All sensors gray (inactive)
+            for led in self.leds:
+                led.set_state('inactive')
+            self._status_label.setText("Not Instantiated")
+            self._status_label.setStyleSheet("color: gray; font-size: 10px;")
+            self.setStyleSheet("QGroupBox { color: gray; }")
         else:
-            self.title_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
-            self.setValue(self._value)
-    
-    def setValue(self, value: int):
-        """Update the register value and refresh display."""
-        if not self._enabled:
-            return
+            # Show alarm states
+            alarm_count = 0
+            for i, led in enumerate(self.leds):
+                if (self._alarm_value >> i) & 1:
+                    led.set_state('alarm')
+                    alarm_count += 1
+                else:
+                    led.set_state('ok')
             
-        self._value = value & 0xFFFFFFFF
-        
-        active_count = 0
-        for i, cell in enumerate(self.cells):
-            bit_active = bool(self._value & (1 << i))
-            cell.setActive(bit_active)
-            if bit_active:
-                active_count += 1
-        
-        self.title_label.setText(f"{self.title}: 0x{self._value:08X}")
-        self.count_label.setText(f"Active: {active_count} / 32")
-        
-        if active_count == 0:
-            self.count_label.setStyleSheet("color: #28a745; font-weight: bold;")
-        elif active_count < 8:
-            self.count_label.setStyleSheet("color: #ffc107; font-weight: bold;")
-        else:
-            self.count_label.setStyleSheet("color: #dc3545; font-weight: bold;")
-    
-    def getValue(self) -> int:
-        return self._value
-    
-    def isRegisterEnabled(self) -> bool:
-        return self._enabled
+            self._status_label.setText(f"Alarms: {alarm_count}/32")
+            if alarm_count > 0:
+                self._status_label.setStyleSheet("color: red; font-weight: bold; font-size: 10px;")
+            else:
+                self._status_label.setStyleSheet("color: green; font-size: 10px;")
+            self.setStyleSheet("QGroupBox { color: black; }")
 
 
-class SensorVisualizationWidget(QWidget):
-    """
-    Main widget displaying all 4 aging sensor registers:
-    - ALARM_F (AM sensors)
-    - ALARM_RF (LF sensors) 
-    - ALARM_DM (Debug Module sensors)
-    - ALARM_OBI_DMX (OBI Demux sensors)
-    """
+class SensorWidget(QWidget):
+    """Main widget displaying all 4 sensor types"""
     
-    data_updated = Signal(dict)  # Emits complete sensor data
+    # Signal emitted when sensor data changes
+    data_changed = Signal(dict)
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+        # Configuration: which sensors are instantiated
+        # DEFAULT: UART and OBI_DMX active, F and RF not instantiated
+        self._active_sensors = {
+            'f': False,
+            'rf': False,
+            'uart': True,      # Called "DM" in legacy interface
+            'obi_dmx': True,   # Called "OBI" in legacy interface
+        }
+        
         self._setup_ui()
     
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setSpacing(10)
         
-        # Main title
-        title = QLabel("Aging Sensor Status - All 4 Sensor Types")
+        # Title
+        title = QLabel("Aging Sensors Status")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 14pt; font-weight: bold; margin-bottom: 10px;")
-        layout.addWidget(title)
+        title.setFont(QFont("Arial", 12, QFont.Bold))
+        main_layout.addWidget(title)
         
-        # Four register displays in 2x2 grid
-        registers_grid = QGridLayout()
-        registers_grid.setSpacing(10)
+        # Sensor grids in 2x2 layout
+        grids_layout = QGridLayout()
+        grids_layout.setSpacing(10)
         
-        # Row 1: Primary sensors (always active)
-        self.alarm_f_widget = SensorRegisterWidget("ALARM_F (AM Sensor)", enabled=True)
-        registers_grid.addWidget(self.alarm_f_widget, 0, 0)
+        # Create sensor grids with display names
+        self._grid_f = SensorGrid("F (AM)", "f")
+        self._grid_rf = SensorGrid("RF (LF)", "rf")
+        self._grid_uart = SensorGrid("UART", "uart")
+        self._grid_obi = SensorGrid("OBI_DMX", "obi_dmx")
         
-        self.alarm_rf_widget = SensorRegisterWidget("ALARM_RF (LF Sensor)", enabled=True)
-        registers_grid.addWidget(self.alarm_rf_widget, 0, 1)
+        grids_layout.addWidget(self._grid_f, 0, 0)
+        grids_layout.addWidget(self._grid_rf, 0, 1)
+        grids_layout.addWidget(self._grid_uart, 1, 0)
+        grids_layout.addWidget(self._grid_obi, 1, 1)
         
-        # Row 2: Secondary sensors (configurable)
-        self.alarm_dm_widget = SensorRegisterWidget("ALARM_DM (Debug Module)", enabled=True)
-        registers_grid.addWidget(self.alarm_dm_widget, 1, 0)
+        main_layout.addLayout(grids_layout)
         
-        self.alarm_obi_widget = SensorRegisterWidget("ALARM_OBI_DMX (OBI Demux)", enabled=True)
-        registers_grid.addWidget(self.alarm_obi_widget, 1, 1)
+        # Summary label
+        self._summary_label = QLabel("Total Alarms: 0")
+        self._summary_label.setAlignment(Qt.AlignCenter)
+        self._summary_label.setFont(QFont("Arial", 10))
+        main_layout.addWidget(self._summary_label)
         
-        layout.addLayout(registers_grid)
+        self.setLayout(main_layout)
         
-        # Summary bar
-        summary_layout = QHBoxLayout()
-        
-        self.total_label = QLabel("Total Active Alarms: 0 / 128")
-        self.total_label.setAlignment(Qt.AlignCenter)
-        self.total_label.setStyleSheet("""
-            font-size: 12pt; 
-            font-weight: bold; 
-            padding: 10px;
-            background-color: #1e1e1e;
-            border-radius: 5px;
-        """)
-        summary_layout.addWidget(self.total_label)
-        
-        self.status_indicator = QLabel("● NOMINAL")
-        self.status_indicator.setAlignment(Qt.AlignCenter)
-        self.status_indicator.setStyleSheet("""
-            font-size: 12pt;
-            font-weight: bold;
-            color: #28a745;
-            padding: 10px;
-            background-color: #1e1e1e;
-            border-radius: 5px;
-        """)
-        summary_layout.addWidget(self.status_indicator)
-        
-        layout.addLayout(summary_layout)
+        # Apply initial active states
+        self._apply_active_states()
     
-    @Slot(dict)
-    def updateFromDict(self, data: dict):
+    def _apply_active_states(self):
+        """Apply active states to all grids"""
+        self._grid_f.set_active(self._active_sensors['f'])
+        self._grid_rf.set_active(self._active_sensors['rf'])
+        self._grid_uart.set_active(self._active_sensors['uart'])
+        self._grid_obi.set_active(self._active_sensors['obi_dmx'])
+    
+    def set_active_sensors(self, f: bool = False, rf: bool = False, 
+                          uart: bool = True, obi_dmx: bool = True):
+        """Configure which sensor types are instantiated"""
+        self._active_sensors = {
+            'f': f,
+            'rf': rf,
+            'uart': uart,
+            'obi_dmx': obi_dmx,
+        }
+        self._apply_active_states()
+    
+    # =========================================================================
+    # BACKWARD COMPATIBILITY: Legacy method used by main_window.py
+    # =========================================================================
+    def updateSensorData(self, alarm_f: int, alarm_rf: int, 
+                         alarm_dm: int, alarm_obi: int):
         """
-        Update all sensor registers from a dictionary.
+        Legacy method for backward compatibility with main_window.py
+        
+        Parameters:
+            alarm_f: F (AM) sensor alarm register (32-bit)
+            alarm_rf: RF (LF) sensor alarm register (32-bit)
+            alarm_dm: UART sensor alarm register (32-bit) - legacy name "DM"
+            alarm_obi: OBI_DMX sensor alarm register (32-bit) - legacy name "OBI"
+        """
+        # Update grid alarm values
+        self._grid_f.set_alarm_value(alarm_f)
+        self._grid_rf.set_alarm_value(alarm_rf)
+        self._grid_uart.set_alarm_value(alarm_dm)    # DM → UART
+        self._grid_obi.set_alarm_value(alarm_obi)    # OBI → OBI_DMX
+        
+        # Update summary
+        self._update_summary(alarm_f, alarm_rf, alarm_dm, alarm_obi)
+    
+    def _update_summary(self, alarm_f: int, alarm_rf: int, 
+                        alarm_uart: int, alarm_obi_dmx: int):
+        """Update the summary label"""
+        total = 0
+        parts = []
+        
+        if self._active_sensors['f']:
+            count = bin(alarm_f).count('1')
+            total += count
+            parts.append(f"F={count}")
+        
+        if self._active_sensors['rf']:
+            count = bin(alarm_rf).count('1')
+            total += count
+            parts.append(f"RF={count}")
+        
+        if self._active_sensors['uart']:
+            count = bin(alarm_uart).count('1')
+            total += count
+            parts.append(f"UART={count}")
+        
+        if self._active_sensors['obi_dmx']:
+            count = bin(alarm_obi_dmx).count('1')
+            total += count
+            parts.append(f"OBI={count}")
+        
+        summary = f"Total Alarms: {total}"
+        if parts:
+            summary += f" ({', '.join(parts)})"
+        
+        self._summary_label.setText(summary)
+        
+        if total > 0:
+            self._summary_label.setStyleSheet("color: red; font-weight: bold;")
+        else:
+            self._summary_label.setStyleSheet("color: green;")
+    
+    # =========================================================================
+    # NEW METHOD: Dictionary-based update
+    # =========================================================================
+    @Slot(dict)
+    def update_from_data(self, data: dict):
+        """
+        Update display from sensor data dictionary
         
         Expected keys:
-            - alarm_f: int (32-bit)
-            - alarm_rf: int (32-bit)
-            - alarm_dm: int (32-bit, optional)
-            - alarm_obi_dmx: int (32-bit, optional)
+            alarm_f, alarm_rf, alarm_uart (or alarm_dm), alarm_obi_dmx (or alarm_obi)
         """
         alarm_f = data.get('alarm_f', 0)
         alarm_rf = data.get('alarm_rf', 0)
-        alarm_dm = data.get('alarm_dm', data.get('obi_dmx', 0))  # Fallback for old naming
-        alarm_obi = data.get('alarm_obi_dmx', data.get('uart_alarm', 0))
+        # Support both new and legacy naming
+        alarm_uart = data.get('alarm_uart', data.get('alarm_dm', 0))
+        alarm_obi_dmx = data.get('alarm_obi_dmx', data.get('alarm_obi', 0))
         
-        self.updateSensorData(alarm_f, alarm_rf, alarm_dm, alarm_obi)
+        self.updateSensorData(alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx)
+
+
+# Example usage and test
+if __name__ == "__main__":
+    import sys
+    from PySide6.QtWidgets import QApplication
     
-    def updateSensorData(self, alarm_f: int, alarm_rf: int, alarm_dm: int = 0, alarm_obi: int = 0):
-        """Update all sensor registers with new values."""
-        # Update primary sensors
-        self.alarm_f_widget.setValue(alarm_f)
-        self.alarm_rf_widget.setValue(alarm_rf)
-        
-        # Update secondary sensors
-        self.alarm_dm_widget.setValue(alarm_dm)
-        self.alarm_obi_widget.setValue(alarm_obi)
-        
-        # Calculate totals from all active sensors
-        counts = []
-        total_bits = 0
-        
-        if self.alarm_f_widget.isRegisterEnabled():
-            f_count = bin(alarm_f).count('1')
-            counts.append(f_count)
-            total_bits += 32
-            
-        if self.alarm_rf_widget.isRegisterEnabled():
-            rf_count = bin(alarm_rf).count('1')
-            counts.append(rf_count)
-            total_bits += 32
-            
-        if self.alarm_dm_widget.isRegisterEnabled():
-            dm_count = bin(alarm_dm).count('1')
-            counts.append(dm_count)
-            total_bits += 32
-            
-        if self.alarm_obi_widget.isRegisterEnabled():
-            obi_count = bin(alarm_obi).count('1')
-            counts.append(obi_count)
-            total_bits += 32
-        
-        total = sum(counts)
-        
-        self.total_label.setText(f"Total Active Alarms: {total} / {total_bits}")
-        
-        # Update status indicator based on percentage
-        if total_bits > 0:
-            alarm_pct = (total / total_bits) * 100
-            
-            if alarm_pct == 0:
-                self.status_indicator.setText("● NOMINAL")
-                self.status_indicator.setStyleSheet("""
-                    font-size: 12pt; font-weight: bold; color: #28a745;
-                    padding: 10px; background-color: #1e1e1e; border-radius: 5px;
-                """)
-            elif alarm_pct < 25:
-                self.status_indicator.setText("● WARNING")
-                self.status_indicator.setStyleSheet("""
-                    font-size: 12pt; font-weight: bold; color: #ffc107;
-                    padding: 10px; background-color: #1e1e1e; border-radius: 5px;
-                """)
-            else:
-                self.status_indicator.setText("● CRITICAL")
-                self.status_indicator.setStyleSheet("""
-                    font-size: 12pt; font-weight: bold; color: #dc3545;
-                    padding: 10px; background-color: #1e1e1e; border-radius: 5px;
-                """)
-        
-        # Emit complete data
-        sensor_data = {
-            'alarm_f': alarm_f,
-            'alarm_rf': alarm_rf,
-            'alarm_dm': alarm_dm,
-            'alarm_obi_dmx': alarm_obi,
-            'alarm_f_count': bin(alarm_f).count('1'),
-            'alarm_rf_count': bin(alarm_rf).count('1'),
-            'alarm_dm_count': bin(alarm_dm).count('1'),
-            'alarm_obi_count': bin(alarm_obi).count('1'),
-            'total_alarms': total,
-            'total_bits': total_bits
-        }
-        self.data_updated.emit(sensor_data)
+    app = QApplication(sys.argv)
     
-    def enableSensor(self, sensor_name: str, enabled: bool):
-        """
-        Enable/disable a specific sensor register.
-        
-        Args:
-            sensor_name: "dm" or "obi_dmx"
-            enabled: True to enable, False to disable (gray out)
-        """
-        if sensor_name.lower() in ["dm", "alarm_dm"]:
-            self.alarm_dm_widget.setRegisterEnabled(enabled)
-        elif sensor_name.lower() in ["obi", "obi_dmx", "alarm_obi_dmx"]:
-            self.alarm_obi_widget.setRegisterEnabled(enabled)
+    widget = SensorWidget()
+    
+    # Configure active sensors: only UART and OBI_DMX are instantiated
+    widget.set_active_sensors(f=True, rf=True, uart=True, obi_dmx=True)
+    
+    # Test with legacy method (as main_window.py uses)
+    widget.updateSensorData(
+        alarm_f=0xFFF7FFF4,      # Would show if active
+        alarm_rf=0x00000000,     # Would show if active
+        alarm_dm=0x000075C0,     # UART - Active, shows alarms
+        alarm_obi=0x0007F800     # OBI_DMX - Active, shows alarms
+    )
+    
+    widget.show()
+    
+    sys.exit(app.exec())

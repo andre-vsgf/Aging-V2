@@ -25,7 +25,7 @@ from PySide6.QtGui import QFont, QTextCursor
 import config
 from router import UARTRouter
 from fpga_manager import FPGAManager, BitstreamManager
-from sensor_widget import SensorVisualizationWidget
+from sensor_widget import SensorWidget
 from telemetry_widget import TelemetryWidget, TelemetryData
 from aging_analysis_widget import AgingAnalysisWidget
 from serial_thread import get_available_ports
@@ -113,7 +113,7 @@ class MainWindow(QMainWindow):
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         
-        self.sensor_widget = SensorVisualizationWidget()
+        self.sensor_widget = SensorWidget()
         left_layout.addWidget(self.sensor_widget)
         
         # Control tabs below sensors
