@@ -117,6 +117,8 @@ set global_defines [list \
     WITH_SENSOR \
     WITH_SENSOR_LF \
     WITH_SENSOR_AM \
+    WITH_SENSOR_UART \
+    WITH_SENSOR_OBI_DMX \
     COMMON_CELLS_ASSERTS_OFF \
 ]
 

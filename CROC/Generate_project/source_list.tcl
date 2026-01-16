@@ -109,7 +109,7 @@ if {[llength $include_paths] > 0} {
 # C. CONSTRAINTS (.xdc)
 # ==============================================================================
 puts "\n\[XDC\] Adicionando Constraints..."
-
+#set_property target_constrs_file $PATH/Aging-V2/CROC/Constraints/fpga_aging_constraints.xdc [current_fileset -constrset]
 set constraints_dir "$croc_root/Constraints"
 if {[file exists $constraints_dir]} {
     set xdc_files [glob -nocomplain -directory $constraints_dir -type f *.xdc]

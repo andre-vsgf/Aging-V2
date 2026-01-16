@@ -31,7 +31,7 @@
 `define WITH_TELEMETRY_TX
 
 // === VIO ENABLED with proper handling ===
-`define USE_VIO
+//`define USE_VIO
 
 
 
@@ -77,7 +77,7 @@ module croc_xilinx import croc_pkg::*; #(
     .clk_in1_p     ( sys_clk_p     ),
     .clk_in1_n     ( sys_clk_n     ),
     .reset         ( 1'b0          ),
-    .locked        ( clk_locked    ),
+    .locked        (               ),
     .soc_clk       ( soc_clk       ),
     .catcher_clk_i ( catcher_clk_i ),
     .psclk_rf_i    ( psclk_rf_i    )
@@ -91,14 +91,14 @@ module croc_xilinx import croc_pkg::*; #(
   logic soc_rst;
 
   // VIO control signals
-  logic       vio_reset_raw;
-  logic       vio_fetch_en_raw;
+  logic       vio_reset;
+  logic       vio_fetch_en;
   logic [3:0] vio_gpio;
   logic [GpioCount-1:0] vio_gpio_i, vio_gpio_o;
   
   // Processed control signals with startup protection
-  logic       vio_reset;
-  logic       vio_fetch_en;
+  //logic       vio_reset;
+  //logic       vio_fetch_en;
   
   // AM (F) Sensor outputs
   logic [31:0] alarm_f_o, ff1_f_o, ff2_f_o, xor_out_f_o;
@@ -146,55 +146,17 @@ module croc_xilinx import croc_pkg::*; #(
   logic        telemetry_enable;
 `endif
 
-  //==========================================================================
-  // VIO INSTANTIATION WITH STARTUP PROTECTION
-  //==========================================================================
-
 `ifdef USE_VIO
-
-  // Startup counter - ensures system starts even if VIO not connected
-  logic [23:0] startup_cnt_q;
-  logic        startup_done_q;
-  
-  localparam STARTUP_CYCLES = 24'd10_000_000;  // 0.5 sec at 20MHz
-  
-  always_ff @(posedge soc_clk or negedge clk_locked) begin
-    if (!clk_locked) begin
-      startup_cnt_q  <= 24'd0;
-      startup_done_q <= 1'b0;
-    end else begin
-      if (!startup_done_q) begin
-        if (startup_cnt_q >= STARTUP_CYCLES) begin
-          startup_done_q <= 1'b1;
-        end else begin
-          startup_cnt_q <= startup_cnt_q + 1;
-        end
-      end
-    end
-  end
-
   // VIO Instance - MUST match IP configuration!
   vio_0 i_vio (
     .clk         ( soc_clk          ),
-    .probe_out0  ( vio_reset_raw    ),   // 1-bit: Reset (1=run, 0=reset)
-    .probe_out1  ( vio_fetch_en_raw ),   // 1-bit: CPU fetch enable
+    .probe_out0  ( vio_reset        ),   // 1-bit: Reset (1=run, 0=reset)
+    .probe_out1  ( vio_fetch_en     ),   // ← CORRIGIDO: era "vio_fetch"
     .probe_out2  ( vio_gpio         ),   // 4-bit: GPIO control
     .probe_out3  ( vio_gpio_i       ),   // 4-bit: GPIO input override
     .probe_in0   ( status_o         )    // 1-bit: System status
   );
-  
-  // Startup protection: force system to run during startup period
-  always_comb begin
-    if (!startup_done_q) begin
-      vio_reset    = 1'b1;   // Not in reset
-      vio_fetch_en = 1'b1;   // CPU enabled
-    end else begin
-      vio_reset    = vio_reset_raw;
-      vio_fetch_en = vio_fetch_en_raw;
-    end
-  end
-
-`else 
+`else
   // VIO disabled - fixed values
   assign vio_reset    = 1'b1;
   assign vio_fetch_en = 1'b1;
@@ -203,7 +165,7 @@ module croc_xilinx import croc_pkg::*; #(
 `endif 
 
   // System reset generation
-  assign soc_rst = ~clk_locked | ~vio_reset;
+  assign soc_rst =  ~vio_reset;
 
   // Telemetry enable (controlled by VIO fetch_en or always on)
 `ifdef WITH_TELEMETRY_TX
@@ -498,7 +460,7 @@ module croc_xilinx import croc_pkg::*; #(
 `ifdef WITH_SENSOR_OBI_DMX
     // OBI DMX Sensors
     .psclk_obi_dmx_i     ( psclk_obi_dmx_i ),
-    .alarm_obi_dmx_   o  ( alarm_obi_dmx_o ),
+    .alarm_obi_dmx_o     ( alarm_obi_dmx_o ),
 `endif
 
 `ifdef WITH_SENSOR
