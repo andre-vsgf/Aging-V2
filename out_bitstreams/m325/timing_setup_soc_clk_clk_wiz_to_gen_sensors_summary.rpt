@@ -1,0 +1,1193 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version      : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
+| Date              : Wed Jan 21 00:48:44 2026
+| Host              : LucasNogueira running 64-bit major release  (build 9200)
+| Command           : report_timing -from [get_clocks soc_clk_clk_wiz] -to [get_pins -hier -quiet -filter {NAME =~ *gen_sensors* && DIRECTION == IN}] -delay_type max -path_type summary -sort_by slack -max_paths 999999 -file C:/Projects/Aging-V2/out_bitstreams/m325/timing_setup_soc_clk_clk_wiz_to_gen_sensors_summary.rpt
+| Design            : croc_xilinx
+| Device            : xcau15p-ffvb676
+| Speed File        : -2  PRODUCTION 1.30 03-14-2023
+| Design State      : Routed
+| Temperature Grade : I
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Startpoint                     Endpoint                       Slack(ns)     
+----------------------------------------------------------------------------
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[23].u_prefetch/FF3/CLR
+                                                              0.338         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[9].u_prefetch/FF3/CLR
+                                                              0.338         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[10].u_fifo/FF3/CLR
+                                                              0.346         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[4].u_fifo/FF3/CLR
+                                                              0.346         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[6].u_fifo/FF3/CLR
+                                                              0.346         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[24].u_prefetch/FF3/CLR
+                                                              0.352         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[8].rf_sen/FF3/CLR
+                                                              0.352         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[0].obi_dmx/FF3/CLR
+                                                              0.352         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[2].obi_dmx/FF3/CLR
+                                                              0.352         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[16].u_prefetch/FF3/CLR
+                                                              0.360         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[1].obi_dmx/FF3/CLR
+                                                              0.360         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[0].obi_dmx/FF3/CLR
+                                                              0.360         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[1].obi_dmx/FF3/CLR
+                                                              0.360         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[21].u_prefetch/FF3/CLR
+                                                              0.381         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[4].u_prefetch/FF3/CLR
+                                                              0.381         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[30].u_prefetch/FF3/CLR
+                                                              0.383         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[10].rf_sen/FF3/CLR
+                                                              0.383         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[0].obi_dmx/FF3/CLR
+                                                              0.383         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[2].obi_dmx/FF3/CLR
+                                                              0.383         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[2].obi_dmx/FF3/CLR
+                                                              0.385         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[0].u_fifo/FF3/CLR
+                                                              0.385         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[7].u_fifo/FF3/CLR
+                                                              0.385         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[3].u_fifo/FF3/CLR
+                                                              0.385         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[17].u_prefetch/FF3/CLR
+                                                              0.389         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[29].u_prefetch/FF3/CLR
+                                                              0.389         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[8].u_prefetch/FF3/CLR
+                                                              0.389         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[2].obi_dmx/FF3/CLR
+                                                              0.389         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[13].u_prefetch/FF3/CLR
+                                                              0.392         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[15].rf_sen/FF3/CLR
+                                                              0.392         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[24].rf_sen/FF3/CLR
+                                                              0.392         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[0].obi_dmx/FF3/CLR
+                                                              0.392         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[7].u_prefetch/FF3/CLR
+                                                              0.392         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[6].u_fifo/FF3/CLR
+                                                              0.392         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[1].u_fifo/FF3/CLR
+                                                              0.392         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[5].u_fifo/FF3/CLR
+                                                              0.392         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[22].u_prefetch/FF3/CLR
+                                                              0.394         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[16].rf_sen/FF3/CLR
+                                                              0.394         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[28].rf_sen/FF3/CLR
+                                                              0.394         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[10].u_prefetch/FF3/CLR
+                                                              0.394         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[11].u_prefetch/FF3/CLR
+                                                              0.394         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[23].rf_sen/FF3/CLR
+                                                              0.394         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[1].obi_dmx/FF3/CLR
+                                                              0.394         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[20].u_prefetch/FF3/CLR
+                                                              0.400         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[1].obi_dmx/FF3/CLR
+                                                              0.400         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[1].u_fifo/FF3/CLR
+                                                              0.400         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[4].u_fifo/FF3/CLR
+                                                              0.400         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[3].u_fifo/FF3/CLR
+                                                              0.402         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[8].u_fifo/FF3/CLR
+                                                              0.405         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[15].u_prefetch/FF3/CLR
+                                                              0.405         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[18].u_prefetch/FF3/CLR
+                                                              0.405         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[14].rf_sen/FF3/CLR
+                                                              0.405         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[25].rf_sen/FF3/CLR
+                                                              0.405         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[30].rf_sen/FF3/CLR
+                                                              0.405         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[5].rf_sen/FF3/CLR
+                                                              0.405         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[6].rf_sen/FF3/CLR
+                                                              0.405         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[26].rf_sen/FF3/CLR
+                                                              0.410         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[20].rf_sen/FF3/CLR
+                                                              0.411         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[14].u_prefetch/FF3/CLR
+                                                              0.414         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[27].u_prefetch/FF3/CLR
+                                                              0.414         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[28].u_prefetch/FF3/CLR
+                                                              0.414         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[17].rf_sen/FF3/CLR
+                                                              0.414         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[26].u_prefetch/FF3/CLR
+                                                              0.416         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[18].rf_sen/FF3/CLR
+                                                              0.417         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[25].u_prefetch/FF3/CLR
+                                                              0.422         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[13].rf_sen/FF3/CLR
+                                                              0.422         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[27].rf_sen/FF3/CLR
+                                                              0.422         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[4].rf_sen/FF3/CLR
+                                                              0.422         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[5].u_prefetch/FF3/CLR
+                                                              0.423         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[21].rf_sen/FF3/CLR
+                                                              0.423         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[22].rf_sen/FF3/CLR
+                                                              0.423         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[7].rf_sen/FF3/CLR
+                                                              0.423         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[31].u_prefetch/FF3/CLR
+                                                              0.425         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[6].u_prefetch/FF3/CLR
+                                                              0.425         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[2].obi_dmx/FF3/CLR
+                                                              0.425         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[0].obi_dmx/FF3/CLR
+                                                              0.425         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[0].rf_sen/FF3/CLR
+                                                              0.425         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[1].rf_sen/FF3/CLR
+                                                              0.425         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[29].rf_sen/FF3/CLR
+                                                              0.425         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[1].obi_dmx/FF3/CLR
+                                                              0.425         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[19].u_prefetch/FF3/CLR
+                                                              0.431         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[12].rf_sen/FF3/CLR
+                                                              0.431         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[2].rf_sen/FF3/CLR
+                                                              0.431         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[2].u_fifo/FF3/CLR
+                                                              0.431         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[3].u_prefetch/FF3/CLR
+                                                              0.434         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[9].u_fifo/FF3/CLR
+                                                              0.434         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[1].u_prefetch/FF3/CLR
+                                                              0.439         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[2].u_prefetch/FF3/CLR
+                                                              0.439         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[19].rf_sen/FF3/CLR
+                                                              0.439         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[3].rf_sen/FF3/CLR
+                                                              0.439         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[0].u_prefetch/FF3/CLR
+                                                              0.441         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[5].u_fifo/FF3/CLR
+                                                              0.441         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[0].u_fifo/FF3/CLR
+                                                              0.441         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[2].u_fifo/FF3/CLR
+                                                              0.441         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[7].u_fifo/FF3/CLR
+                                                              0.441         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[12].u_prefetch/FF3/CLR
+                                                              0.447         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[11].rf_sen/FF3/CLR
+                                                              0.447         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[31].rf_sen/FF3/CLR
+                                                              0.447         
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[9].rf_sen/FF3/CLR
+                                                              0.447         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[0].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[0].rf_sen/FF3/D
+                                                              1.852         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[11].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[11].rf_sen/FF3/D
+                                                              1.853         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[15].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[15].rf_sen/FF3/D
+                                                              1.897         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[7].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[7].u_fifo/FF3/D
+                                                              1.912         
+i_croc_soc/i_croc/i_obi_demux/gen_sensors[2].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[2].obi_dmx/FF3/D
+                                                              1.914         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[0].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[0].u_fifo/FF3/D
+                                                              1.916         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[7].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[7].rf_sen/FF3/D
+                                                              1.920         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[2].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[2].obi_dmx/FF3/D
+                                                              1.920         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[31].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[31].rf_sen/FF3/D
+                                                              1.930         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[20].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[20].rf_sen/FF3/D
+                                                              1.947         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[5].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[5].u_fifo/FF3/D
+                                                              1.949         
+i_croc_soc/i_croc/i_obi_demux/gen_sensors[1].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[1].obi_dmx/FF3/D
+                                                              1.951         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[1].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[1].rf_sen/FF3/D
+                                                              1.952         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[16].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[16].u_prefetch/FF3/D
+                                                              1.952         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[5].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[5].rf_sen/FF3/D
+                                                              1.963         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[1].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[1].obi_dmx/FF3/D
+                                                              1.966         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[24].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[24].u_prefetch/FF3/D
+                                                              1.970         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[2].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[2].rf_sen/FF3/D
+                                                              1.977         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[1].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[1].obi_dmx/FF3/D
+                                                              1.977         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[18].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[18].rf_sen/FF3/D
+                                                              1.978         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[0].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[0].obi_dmx/FF3/D
+                                                              1.980         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[1].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[1].u_prefetch/FF3/D
+                                                              1.983         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[29].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[29].rf_sen/FF3/D
+                                                              1.990         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[23].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[23].rf_sen/FF3/D
+                                                              1.991         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[0].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[0].u_fifo/FF3/D
+                                                              1.993         
+i_croc_soc/i_croc/i_obi_demux/gen_sensors[0].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[0].obi_dmx/FF3/D
+                                                              1.993         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[9].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[9].u_fifo/FF3/D
+                                                              1.998         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[0].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[0].u_prefetch/FF3/D
+                                                              1.998         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[12].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[12].rf_sen/FF3/D
+                                                              1.999         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[6].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[6].u_fifo/FF3/D
+                                                              1.999         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[17].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[17].u_prefetch/FF3/D
+                                                              2.003         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[16].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[16].rf_sen/FF3/D
+                                                              2.007         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[26].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[26].rf_sen/FF3/D
+                                                              2.012         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[18].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[18].u_prefetch/FF3/D
+                                                              2.014         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[8].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[8].rf_sen/FF3/D
+                                                              2.015         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[2].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[2].obi_dmx/FF3/D
+                                                              2.016         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[14].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[14].rf_sen/FF3/D
+                                                              2.017         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[21].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[21].rf_sen/FF3/D
+                                                              2.020         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[25].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[25].rf_sen/FF3/D
+                                                              2.021         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[10].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[10].u_prefetch/FF3/D
+                                                              2.022         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[17].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[17].rf_sen/FF3/D
+                                                              2.024         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[19].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[19].rf_sen/FF3/D
+                                                              2.028         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[9].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[9].u_prefetch/FF3/D
+                                                              2.033         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[1].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[1].obi_dmx/FF3/D
+                                                              2.038         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[5].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[5].u_prefetch/FF3/D
+                                                              2.039         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[27].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[27].rf_sen/FF3/D
+                                                              2.040         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[30].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[30].u_prefetch/FF3/D
+                                                              2.041         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[27].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[27].u_prefetch/FF3/D
+                                                              2.046         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[8].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[8].u_fifo/FF3/D
+                                                              2.050         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[0].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[0].obi_dmx/FF3/D
+                                                              2.052         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[23].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[23].u_prefetch/FF3/D
+                                                              2.054         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[6].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[6].rf_sen/FF3/D
+                                                              2.055         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[11].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[11].u_prefetch/FF3/D
+                                                              2.059         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[12].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[12].u_prefetch/FF3/D
+                                                              2.060         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[4].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[4].u_fifo/FF3/D
+                                                              2.068         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[4].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[4].u_fifo/FF3/D
+                                                              2.070         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[28].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[28].u_prefetch/FF3/D
+                                                              2.071         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[3].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[3].u_fifo/FF3/D
+                                                              2.071         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[4].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[4].u_prefetch/FF3/D
+                                                              2.074         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[15].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[15].u_prefetch/FF3/D
+                                                              2.074         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[0].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[0].obi_dmx/FF3/D
+                                                              2.075         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[3].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[3].u_prefetch/FF3/D
+                                                              2.078         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[13].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[13].rf_sen/FF3/D
+                                                              2.080         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[7].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[7].u_fifo/FF3/D
+                                                              2.082         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[31].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[31].u_prefetch/FF3/D
+                                                              2.084         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[19].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[19].u_prefetch/FF3/D
+                                                              2.085         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[28].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[28].rf_sen/FF3/D
+                                                              2.086         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[2].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[2].u_prefetch/FF3/D
+                                                              2.096         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[9].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[9].rf_sen/FF3/D
+                                                              2.097         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[13].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[13].u_prefetch/FF3/D
+                                                              2.098         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[30].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[30].rf_sen/FF3/D
+                                                              2.099         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[6].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[6].u_fifo/FF3/D
+                                                              2.100         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[21].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[21].u_prefetch/FF3/D
+                                                              2.102         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[10].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[10].rf_sen/FF3/D
+                                                              2.107         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[4].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[4].rf_sen/FF3/D
+                                                              2.107         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[8].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[8].u_prefetch/FF3/D
+                                                              2.112         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[1].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[1].u_fifo/FF3/D
+                                                              2.114         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[2].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[2].u_fifo/FF3/D
+                                                              2.123         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[3].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[3].rf_sen/FF3/D
+                                                              2.128         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[2].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[2].u_fifo/FF3/D
+                                                              2.128         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[22].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[22].u_prefetch/FF3/D
+                                                              2.130         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[1].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[1].u_fifo/FF3/D
+                                                              2.131         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[22].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[22].rf_sen/FF3/D
+                                                              2.137         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[10].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[10].u_fifo/FF3/D
+                                                              2.151         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[14].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[14].u_prefetch/FF3/D
+                                                              2.152         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[3].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[3].u_fifo/FF3/D
+                                                              2.152         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[29].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[29].u_prefetch/FF3/D
+                                                              2.155         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[2].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[2].obi_dmx/FF3/D
+                                                              2.156         
+i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[5].u_fifo/FF1/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[5].u_fifo/FF3/D
+                                                              2.157         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[25].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[25].u_prefetch/FF3/D
+                                                              2.160         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[26].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[26].u_prefetch/FF3/D
+                                                              2.167         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[0].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[0].obi_dmx/FF3/D
+                                                              2.167         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[1].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[1].obi_dmx/FF3/D
+                                                              2.169         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[6].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[6].u_prefetch/FF3/D
+                                                              2.171         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[24].rf_sen/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[24].rf_sen/FF3/D
+                                                              2.178         
+i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[2].obi_dmx/FF1/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[2].obi_dmx/FF3/D
+                                                              2.194         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[7].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[7].u_prefetch/FF3/D
+                                                              2.201         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[20].u_prefetch/FF1/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[20].u_prefetch/FF3/D
+                                                              2.218         
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[20].u_prefetch/FF1/D
+                                                              32.504        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[21].u_prefetch/FF1/D
+                                                              32.609        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[24].u_prefetch/FF1/D
+                                                              32.676        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[23].u_prefetch/FF1/D
+                                                              32.786        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[18].u_prefetch/FF1/D
+                                                              32.842        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[16].u_prefetch/FF1/D
+                                                              32.876        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[15].u_prefetch/FF1/D
+                                                              32.879        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[7].u_prefetch/FF1/D
+                                                              32.908        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[19].u_prefetch/FF1/D
+                                                              32.914        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[1].u_prefetch/FF1/D
+                                                              32.949        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[25].rf_sen/FF1/D
+                                                              32.969        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[8].u_prefetch/FF1/D
+                                                              32.974        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[17].u_prefetch/FF1/D
+                                                              33.010        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[22].u_prefetch/FF1/D
+                                                              33.069        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[10].u_prefetch/FF1/D
+                                                              33.085        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[0].u_prefetch/FF1/D
+                                                              33.211        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[16].rf_sen/FF1/D
+                                                              33.306        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[10].rf_sen/FF1/D
+                                                              33.336        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[7].rf_sen/FF1/D
+                                                              33.338        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[3].rf_sen/FF1/D
+                                                              33.340        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[11].u_prefetch/FF1/D
+                                                              33.356        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[9].u_prefetch/FF1/D
+                                                              33.388        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[5].u_prefetch/FF1/D
+                                                              33.421        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[3].u_prefetch/FF1/D
+                                                              33.478        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[29].rf_sen/FF1/D
+                                                              33.494        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[6].rf_sen/FF1/D
+                                                              33.498        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[30].u_prefetch/FF1/D
+                                                              33.517        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[24].rf_sen/FF1/D
+                                                              33.520        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[9].rf_sen/FF1/D
+                                                              33.520        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[18].rf_sen/FF1/D
+                                                              33.535        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[31].u_prefetch/FF1/D
+                                                              33.535        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[21].rf_sen/FF1/D
+                                                              33.537        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[14].u_prefetch/FF1/D
+                                                              33.547        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[22].rf_sen/FF1/D
+                                                              33.587        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[23].rf_sen/FF1/D
+                                                              33.593        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[28].u_prefetch/FF1/D
+                                                              33.610        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[6].u_prefetch/FF1/D
+                                                              33.618        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[17].rf_sen/FF1/D
+                                                              33.621        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[2].rf_sen/FF1/D
+                                                              33.622        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[31].rf_sen/FF1/D
+                                                              33.630        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[30].rf_sen/FF1/D
+                                                              33.636        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[13].rf_sen/FF1/D
+                                                              33.654        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[4].u_prefetch/FF1/D
+                                                              33.669        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[28].rf_sen/FF1/D
+                                                              33.670        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[29].u_prefetch/FF1/D
+                                                              33.681        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[27].rf_sen/FF1/D
+                                                              33.685        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[11].rf_sen/FF1/D
+                                                              33.692        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[27].u_prefetch/FF1/D
+                                                              33.702        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[26].u_prefetch/FF1/D
+                                                              33.708        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[13].u_prefetch/FF1/D
+                                                              33.732        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[15].rf_sen/FF1/D
+                                                              33.743        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[25].u_prefetch/FF1/D
+                                                              33.753        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[4].rf_sen/FF1/D
+                                                              33.762        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[20].rf_sen/FF1/D
+                                                              33.766        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[2].u_prefetch/FF1/D
+                                                              33.770        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[19].rf_sen/FF1/D
+                                                              33.772        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[5].rf_sen/FF1/D
+                                                              33.783        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[12].u_prefetch/FF1/D
+                                                              33.791        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[12].rf_sen/FF1/D
+                                                              33.805        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[8].rf_sen/FF1/D
+                                                              33.808        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[14].rf_sen/FF1/D
+                                                              33.833        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[1].rf_sen/FF1/D
+                                                              34.011        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[26].rf_sen/FF1/D
+                                                              34.037        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[0].rf_sen/FF1/D
+                                                              34.065        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[1].obi_dmx/FF1/D
+                                                              34.400        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[1].obi_dmx/FF1/D
+                                                              34.444        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[0].obi_dmx/FF1/D
+                                                              34.560        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[2].obi_dmx/FF1/D
+                                                              34.590        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[2].obi_dmx/FF1/D
+                                                              34.631        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[0].obi_dmx/FF1/D
+                                                              34.650        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[2].obi_dmx/FF1/D
+                                                              34.668        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[22]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[0].obi_dmx/FF1/D
+                                                              34.719        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[1].obi_dmx/FF1/D
+                                                              34.971        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[0].obi_dmx/FF1/D
+                                                              35.105        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[1].obi_dmx/FF1/D
+                                                              35.156        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[2].u_fifo/FF1/D
+                                                              35.572        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[2].obi_dmx/FF1/D
+                                                              35.577        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[4].u_fifo/FF1/D
+                                                              35.643        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[7].u_fifo/FF1/D
+                                                              35.968        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[5].u_fifo/FF1/D
+                                                              36.010        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[1].u_fifo/FF1/D
+                                                              36.083        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[6].u_fifo/FF1/D
+                                                              36.102        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[0].u_fifo/FF1/D
+                                                              36.198        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[3].u_fifo/FF1/D
+                                                              36.363        
+i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/instr_rdata_id_o_reg[20]_rep/C
+                               i_croc_soc/i_user/i_obi_demux/gen_sensors[0].obi_dmx/FF1/D
+                                                              37.588        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_user/i_obi_demux/gen_sensors[0].obi_dmx/FF1/CLR
+                                                              46.360        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[23].rf_sen/FF1/CLR
+                                                              46.903        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[1].obi_dmx/FF1/CLR
+                                                              46.903        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[1].obi_dmx/FF1/CLR
+                                                              46.903        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[0].rf_sen/FF1/CLR
+                                                              46.904        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[20].rf_sen/FF1/CLR
+                                                              46.904        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[13].u_prefetch/FF1/CLR
+                                                              46.906        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[7].u_prefetch/FF1/CLR
+                                                              46.906        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[24].rf_sen/FF1/CLR
+                                                              46.906        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[2].obi_dmx/FF1/CLR
+                                                              46.906        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[2].obi_dmx/FF1/CLR
+                                                              46.906        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[0].u_fifo/FF1/CLR
+                                                              46.906        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[2].u_fifo/FF1/CLR
+                                                              46.906        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[7].u_fifo/FF1/CLR
+                                                              46.906        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[10].u_fifo/FF1/CLR
+                                                              46.907        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[3].u_fifo/FF1/CLR
+                                                              46.907        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[6].u_fifo/FF1/CLR
+                                                              46.907        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[9].u_fifo/FF1/CLR
+                                                              46.907        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[1].u_fifo/FF1/CLR
+                                                              46.907        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[5].u_fifo/FF1/CLR
+                                                              46.907        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[8].u_fifo/FF1/CLR
+                                                              46.907        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[3].u_fifo/FF1/CLR
+                                                              46.907        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[5].u_fifo/FF1/CLR
+                                                              46.907        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[31].rf_sen/FF1/CLR
+                                                              46.909        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[7].rf_sen/FF1/CLR
+                                                              46.909        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[2].obi_dmx/FF1/CLR
+                                                              46.910        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[30].rf_sen/FF1/CLR
+                                                              46.910        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[5].rf_sen/FF1/CLR
+                                                              46.910        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[9].rf_sen/FF1/CLR
+                                                              46.910        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[15].rf_sen/FF1/CLR
+                                                              46.911        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[25].rf_sen/FF1/CLR
+                                                              46.911        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[26].rf_sen/FF1/CLR
+                                                              46.911        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[6].rf_sen/FF1/CLR
+                                                              46.911        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[0].u_prefetch/FF1/CLR
+                                                              46.912        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[12].u_prefetch/FF1/CLR
+                                                              46.912        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[14].u_prefetch/FF1/CLR
+                                                              46.912        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[15].u_prefetch/FF1/CLR
+                                                              46.912        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[18].u_prefetch/FF1/CLR
+                                                              46.912        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[27].u_prefetch/FF1/CLR
+                                                              46.912        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[28].u_prefetch/FF1/CLR
+                                                              46.912        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[9].u_prefetch/FF1/CLR
+                                                              46.912        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[0].obi_dmx/FF1/CLR
+                                                              46.913        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[11].u_prefetch/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[16].u_prefetch/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[2].u_prefetch/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[21].rf_sen/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[27].rf_sen/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[8].rf_sen/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[2].obi_dmx/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[1].i_demux/gen_sensors[2].obi_dmx/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[17].rf_sen/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[29].rf_sen/FF1/CLR
+                                                              46.914        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[11].rf_sen/FF1/CLR
+                                                              46.915        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[14].rf_sen/FF1/CLR
+                                                              46.915        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[18].rf_sen/FF1/CLR
+                                                              46.915        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[1].rf_sen/FF1/CLR
+                                                              46.915        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_obi_demux/gen_sensors[0].obi_dmx/FF1/CLR
+                                                              46.915        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[21].u_prefetch/FF1/CLR
+                                                              46.918        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[29].u_prefetch/FF1/CLR
+                                                              46.918        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[4].u_prefetch/FF1/CLR
+                                                              46.918        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[8].u_prefetch/FF1/CLR
+                                                              46.918        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[10].u_prefetch/FF1/CLR
+                                                              46.920        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[19].u_prefetch/FF1/CLR
+                                                              46.920        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[5].u_prefetch/FF1/CLR
+                                                              46.920        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[0].obi_dmx/FF1/CLR
+                                                              46.920        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[13].rf_sen/FF1/CLR
+                                                              46.923        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[17].u_prefetch/FF1/CLR
+                                                              46.925        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[22].u_prefetch/FF1/CLR
+                                                              46.925        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[24].u_prefetch/FF1/CLR
+                                                              46.925        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[30].u_prefetch/FF1/CLR
+                                                              46.925        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[10].rf_sen/FF1/CLR
+                                                              46.925        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[16].rf_sen/FF1/CLR
+                                                              46.925        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[28].rf_sen/FF1/CLR
+                                                              46.925        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[20].u_prefetch/FF1/CLR
+                                                              46.929        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[0].obi_dmx/FF1/CLR
+                                                              46.929        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[3].i_demux/gen_sensors[1].obi_dmx/FF1/CLR
+                                                              46.929        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[1].u_fifo/FF1/CLR
+                                                              46.929        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[2].u_fifo/FF1/CLR
+                                                              46.929        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[4].u_fifo/FF1/CLR
+                                                              46.929        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[4].u_fifo/FF1/CLR
+                                                              46.929        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_TXFF/gen_sensors_bit[6].u_fifo/FF1/CLR
+                                                              46.929        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[0].u_fifo/FF1/CLR
+                                                              46.933        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[7].u_fifo/FF1/CLR
+                                                              46.933        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[1].u_prefetch/FF1/CLR
+                                                              46.934        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[23].u_prefetch/FF1/CLR
+                                                              46.934        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[3].u_prefetch/FF1/CLR
+                                                              46.934        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[12].rf_sen/FF1/CLR
+                                                              46.934        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[19].rf_sen/FF1/CLR
+                                                              46.934        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[2].rf_sen/FF1/CLR
+                                                              46.934        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[1].obi_dmx/FF1/CLR
+                                                              46.934        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[2].i_demux/gen_sensors[1].obi_dmx/FF1/CLR
+                                                              46.934        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[25].u_prefetch/FF1/CLR
+                                                              46.940        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[26].u_prefetch/FF1/CLR
+                                                              46.940        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[31].u_prefetch/FF1/CLR
+                                                              46.940        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/if_stage_i/gen_sensors[6].u_prefetch/FF1/CLR
+                                                              46.940        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[22].rf_sen/FF1/CLR
+                                                              46.940        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[3].rf_sen/FF1/CLR
+                                                              46.940        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_core_wrap/i_ibex/register_file_i/gen_sensors[4].rf_sen/FF1/CLR
+                                                              46.940        
+i_croc_soc/i_rstgen/i_rstgen_bypass/synch_regs_q_reg[3]/C
+                               i_croc_soc/i_croc/i_main_xbar/gen_demux[0].i_demux/gen_sensors[0].obi_dmx/FF1/CLR
+                                                              46.940        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[1]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[1].u_fifo/FF1/D
+                                                              48.151        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[8]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[8].u_fifo/FF1/D
+                                                              48.233        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[3]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[3].u_fifo/FF1/D
+                                                              48.327        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[0]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[0].u_fifo/FF1/D
+                                                              48.459        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[2]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[2].u_fifo/FF1/D
+                                                              48.491        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[4]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[4].u_fifo/FF1/D
+                                                              48.933        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[5]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[5].u_fifo/FF1/D
+                                                              48.938        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[10]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[10].u_fifo/FF1/D
+                                                              48.958        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[6]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[6].u_fifo/FF1/D
+                                                              49.009        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[7]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[7].u_fifo/FF1/D
+                                                              49.148        
+i_croc_soc/i_croc/i_uart/i_apb_uart/iRXFIFOD_reg[9]/C
+                               i_croc_soc/i_croc/i_uart/i_apb_uart/UART_RXFF/gen_sensors_bit[9].u_fifo/FF1/D
+                                                              49.153        
+
+
+

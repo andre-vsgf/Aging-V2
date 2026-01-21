@@ -184,16 +184,15 @@ if { [llength [get_ips -quiet vio_0]] == 0 } {
 
     set_property -dict [list \
         CONFIG.C_NUM_PROBE_IN {1} \
-        CONFIG.C_NUM_PROBE_OUT {4} \
+        CONFIG.C_NUM_PROBE_OUT {3} \
         CONFIG.C_PROBE_IN0_WIDTH {1} \
+        CONFIG.C_PROBE_IN1_WIDTH {1} \
         CONFIG.C_PROBE_OUT0_WIDTH {1} \
         CONFIG.C_PROBE_OUT1_WIDTH {1} \
         CONFIG.C_PROBE_OUT2_WIDTH {4} \
-        CONFIG.C_PROBE_OUT3_WIDTH {4} \
         CONFIG.C_PROBE_OUT0_INIT_VAL {0x1} \
         CONFIG.C_PROBE_OUT1_INIT_VAL {0x1} \
         CONFIG.C_PROBE_OUT2_INIT_VAL {0x0} \
-        CONFIG.C_PROBE_OUT3_INIT_VAL {0x0} \
     ] [get_ips vio_0]
 
     puts "      Gerando targets..."

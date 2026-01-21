@@ -44,11 +44,7 @@ set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets {i_vio/inst/PROBE_OUT_ALL_INS
 ####################################################################################################################################################################################
 # SYSTEM CLOCK 300MHZ - BANK 64 - VOLTAGE 1.2V VCCO_64_65
 ####################################################################################################################################################################################
-set_property PACKAGE_PIN AD21 [get_ports sys_clk_p]
-set_property PACKAGE_PIN AE21 [get_ports sys_clk_n]
 
-set_property IOSTANDARD DIFF_SSTL12 [get_ports sys_clk_n]
-set_property IOSTANDARD DIFF_SSTL12 [get_ports sys_clk_p]
 ####################################################################################################################################################################################
 # RED LEDs - BANK 85 - VOLTAGE 3.3V
 ####################################################################################################################################################################################
@@ -64,26 +60,19 @@ set_property IOSTANDARD DIFF_SSTL12 [get_ports sys_clk_p]
 ####################################################################################################################################################################################
 #set_property PACKAGE_PIN AE15       [get_ports "LED_RGB_R1"] ;    # Bank 84 - VCCO_0_84 - IO_L3N_AD9N_84  - RGB LED D35 (RED)
 #set_property PACKAGE_PIN AD15           [get_ports fetch]
-set_property PACKAGE_PIN AF13 [get_ports soc_clk]
 #set_property IOSTANDARD LVCMOS18    [get_ports "LED_RGB_R1"] ;    # Bank 84 - VCCO_0_84 - IO_L3N_AD9N_84  - RGB LED D35 (RED)
 #set_property IOSTANDARD LVCMOS18        [get_ports fetch]
-set_property IOSTANDARD LVCMOS18 [get_ports soc_clk]
 ####################################################################################################################################################################################
 # UART Transmit and Receive - BANK 84 - VOLTAGE 1.8V
 ####################################################################################################################################################################################
-set_property PACKAGE_PIN AF15 [get_ports uart_tx_o]
-set_property PACKAGE_PIN AF14 [get_ports uart_rx_i]
 
-set_property IOSTANDARD LVCMOS18 [get_ports uart_tx_o]
-set_property IOSTANDARD LVCMOS18 [get_ports uart_rx_i]
 ####################################################################################################################################################################################
 # RGB LED - BANK 65 - VOLTAGE 1.2V VCCO_64_65 - PULLED DOWN BY DEFAULT (ACTIVE-HIGH with GPIO CONTROL)
 ####################################################################################################################################################################################
-set_property PACKAGE_PIN U26 [get_ports status_o]
 #set_property PACKAGE_PIN P24        [get_ports ""] ;     # Bank 65 - VCCO_64_65 - IO_L15N_T2L_N5_AD11N_A03_D19_65    - RGB LED D36 (GREEN)
 #set_property PACKAGE_PIN N24        [get_ports "LED_RGB_B2"] ;     # Bank 65 - VCCO_64_65 - IO_L15P_T2L_N4_AD11P_A02_D18_65    - RGB LED D36 (BLUE)
 
-set_property IOSTANDARD LVCMOS12 [get_ports status_o]
 #set_property IOSTANDARD LVCMOS12    [get_ports ""] ;     # Bank 65 - VCCO_64_65 - IO_L15N_T2L_N5_AD11N_A03_D19_65    - RGB LED D36 (GREEN)
 #set_property IOSTANDARD LVCMOS12    [get_ports "LED_RGB_B2"] ;     # Bank 65 - VCCO_64_65 - IO_L15P_T2L_N4_AD11P_A02_D18_65    - RGB LED D36 (BLUE)
+
 

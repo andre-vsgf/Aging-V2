@@ -1,0 +1,7 @@
+Iteration log - CLKOUT3 phase = -300 deg
+Started at: 2026-01-21 01:36:22
+------------------------------------------------------------
+2026-01-21 01:36:22 - Setting clk_wiz CLKOUT3_REQUESTED_PHASE = -300
+2026-01-21 01:36:23 - Launching synthesis jobs=14
+2026-01-21 01:42:41 - Synthesis done
+2026-01-21 01:42:41 - Launching implementation to write_bitstream jobs=14

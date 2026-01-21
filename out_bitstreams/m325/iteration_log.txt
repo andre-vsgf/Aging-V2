@@ -1,0 +1,15 @@
+Iteration log - CLKOUT3 phase = -325 deg
+Started at: 2026-01-21 00:38:13
+------------------------------------------------------------
+2026-01-21 00:38:13 - Setting clk_wiz CLKOUT3_REQUESTED_PHASE = -325
+2026-01-21 00:38:15 - Launching synthesis jobs=14
+2026-01-21 00:43:12 - Synthesis done
+2026-01-21 00:43:12 - Launching implementation to write_bitstream jobs=14
+2026-01-21 00:48:25 - Implementation/bitstream done
+2026-01-21 00:48:40 - Using clock: soc_clk_clk_wiz
+2026-01-21 00:48:40 - Writing compact timing report -> C:/Projects/Aging-V2/out_bitstreams/m325/timing_setup_soc_clk_clk_wiz_to_gen_sensors_summary.rpt
+2026-01-21 00:48:44 - Copied BIT -> C:/Projects/Aging-V2/out_bitstreams/m325/croc_aging_clkout3phase_m325.bit
+2026-01-21 00:48:44 - Copied LTX -> C:/Projects/Aging-V2/out_bitstreams/m325/croc_aging_clkout3phase_m325.ltx
+------------------------------------------------------------
+Finished at: 2026-01-21 00:48:44
+Iteration duration: 00:10:31
