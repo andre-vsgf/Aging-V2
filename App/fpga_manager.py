@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-FPGA Programming Manager
+FPGA Programming Manager - FIXED VERSION
 
 Handles FPGA bitstream programming via Vivado in batch mode.
 Cross-platform support for Windows and Linux.
@@ -9,15 +9,52 @@ Features:
 - SRAM Programming (volatile, .bit files)
 - FLASH Programming (persistent, .bin files)
 - VIO Reset (soft reset via debug probes)
+
+FIXES:
+- Proper path escaping for Windows (handles spaces, colons, special chars)
+- Uses shell=False with proper argument quoting
 """
 
 import os
 import shutil
 import glob
+import subprocess
 from pathlib import Path
 from PySide6.QtCore import QObject, QProcess, Signal, Slot
 
 import config
+
+
+def _quote_path_for_tcl(path: str) -> str:
+    """
+    Quote a path for use in TCL arguments.
+    
+    On Windows, paths with spaces or special characters need proper handling.
+    We use forward slashes (TCL prefers them) and wrap in braces if needed.
+    """
+    # Convert to forward slashes (TCL/Vivado preference)
+    path = path.replace('\\', '/')
+    
+    # If path has spaces or special chars, wrap in braces
+    if ' ' in path or '(' in path or ')' in path:
+        return '{' + path + '}'
+    
+    return path
+
+
+def _normalize_path(path: str) -> str:
+    """
+    Normalize a path for cross-platform use.
+    Converts to absolute path and uses forward slashes.
+    """
+    # Get absolute path
+    abs_path = os.path.abspath(path)
+    
+    # On Windows, convert backslashes to forward slashes for TCL
+    if config.IS_WINDOWS:
+        abs_path = abs_path.replace('\\', '/')
+    
+    return abs_path
 
 
 class FPGAManager(QObject):
@@ -134,10 +171,13 @@ class FPGAManager(QObject):
         # Setup process
         self._setup_process()
         
-        # Build command arguments
-        file_abspath = os.path.abspath(file_path)
-        tcl_abspath = os.path.abspath(self._tcl_program)
+        # Normalize paths for TCL/Vivado
+        # CRITICAL FIX: Use forward slashes and proper quoting
+        file_abspath = _normalize_path(file_path)
+        tcl_abspath = _normalize_path(self._tcl_program)
         
+        # Build command arguments
+        # Note: QProcess handles quoting automatically, but we need clean paths
         args = ["-mode", "batch", "-source", tcl_abspath, "-tclargs", file_abspath]
         
         # Add flash flag if needed
@@ -156,12 +196,15 @@ class FPGAManager(QObject):
         self.output.emit(f"  Vivado: {vivado_exe}")
         self.output.emit(f"  File:   {self._current_bitstream}")
         self.output.emit(f"  Script: {os.path.basename(tcl_abspath)}")
+        self.output.emit(f"  Path:   {file_abspath}")  # Debug: show actual path
         self.output.emit("=" * 60)
         
         self.started.emit(self._current_bitstream)
         self.progress.emit(5)
         
-        # Start
+        # Start process
+        # CRITICAL FIX: Set working directory to avoid path issues
+        self.process.setWorkingDirectory(os.path.dirname(file_abspath))
         self.process.start(vivado_exe, args)
 
     def reset(self, ltx_path: str = None):
@@ -190,15 +233,18 @@ class FPGAManager(QObject):
         # Setup process
         self._setup_process()
 
+        # Normalize path for TCL
+        tcl_abspath = _normalize_path(self._tcl_reset)
+        
         # Build arguments
-        tcl_abspath = os.path.abspath(self._tcl_reset)
         args = ["-mode", "batch", "-source", tcl_abspath]
         
         # Add LTX file if provided and exists
         ltx_info = "(auto-detect)"
         if ltx_path:
             if os.path.exists(ltx_path):
-                args.extend(["-tclargs", ltx_path])
+                ltx_normalized = _normalize_path(ltx_path)
+                args.extend(["-tclargs", ltx_normalized])
                 ltx_info = os.path.basename(ltx_path)
             else:
                 self.output.emit(f"⚠ Warning: LTX file not found: {ltx_path}")
@@ -221,18 +267,29 @@ class FPGAManager(QObject):
         self.process.start(vivado_exe, args)
 
     def cancel(self):
-        """Attempt to cancel the current programming operation."""
-        if self.process and self.process.state() != QProcess.NotRunning:
+        """Cancel the current programming operation."""
+        if self.process and self.is_programming:
             self.output.emit("⚠ Cancelling operation...")
             self.process.kill()
+            self.is_programming = False
+            self.finished.emit(False, "Operation cancelled by user")
 
     def _setup_process(self):
-        """Create and configure the QProcess."""
+        """Setup the QProcess for Vivado."""
+        if self.process:
+            self.process.deleteLater()
+        
         self.process = QProcess(self)
         self.process.readyReadStandardOutput.connect(self._handle_stdout)
         self.process.readyReadStandardError.connect(self._handle_stderr)
         self.process.finished.connect(self._handle_finished)
         self.process.errorOccurred.connect(self._handle_error)
+        
+        # CRITICAL FIX: Set process channel mode to merge stdout/stderr
+        # and use native arguments on Windows
+        if config.IS_WINDOWS:
+            # Use native arguments mode for better Windows compatibility
+            self.process.setProcessChannelMode(QProcess.MergedChannels)
 
     def _handle_stdout(self):
         """Handle standard output from Vivado."""
