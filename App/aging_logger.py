@@ -1,15 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-Aging Event Logger
+Aging Event Logger - 4 SENSOR VERSION
 
 Records sensor alarm events with associated metadata for later analysis:
 - Timestamp of alarm activation
-- Which sensors triggered
+- Which sensors triggered (ALL 4 TYPES: F, RF, UART, OBI_DMX)
 - Current bitstream and its calibration (slack value)
 - Environmental data (temperature, voltage)
 - Calculated radiation dose based on experiment timeline
 
 Output format is designed for easy import into analysis tools (CSV, pandas).
+
+UPDATED: Now supports 4 sensor types instead of 2:
+- ALARM_F (AM sensors)
+- ALARM_RF (LF sensors)
+- ALARM_UART (UART sensors)
+- ALARM_OBI_DMX (OBI Demux sensors)
 """
 
 import csv
@@ -23,35 +29,44 @@ from PySide6.QtCore import QObject, Signal
 
 @dataclass
 class AgingEvent:
-    """A single aging/alarm event record."""
+    """
+    A single aging/alarm event record.
+    
+    UPDATED: Now includes all 4 sensor types.
+    """
     
     # Timing
-    timestamp: Union[datetime, str]   # FIX: Supports datetime object now
-    experiment_time_hours: float      # Hours since experiment start
+    timestamp: Union[datetime, str]
+    experiment_time_hours: float
     
     # Radiation (calculated from time)
-    radiation_dose_krad: float        # Estimated accumulated dose
+    radiation_dose_krad: float
     
-    # Sensor data
+    # Sensor data - ALL 4 TYPES
     alarm_f: int                      # ALARM_F register value (32-bit)
     alarm_rf: int                     # ALARM_RF register value (32-bit)
-    triggered_sensors_f: List[int]    # List of bit indices that triggered
-    triggered_sensors_rf: List[int]   # List of bit indices that triggered
+    alarm_uart: int = 0               # ALARM_UART register value (32-bit) - NEW
+    alarm_obi_dmx: int = 0            # ALARM_OBI_DMX register value (32-bit) - NEW
+    
+    triggered_sensors_f: List[int] = field(default_factory=list)
+    triggered_sensors_rf: List[int] = field(default_factory=list)
+    triggered_sensors_uart: List[int] = field(default_factory=list)      # NEW
+    triggered_sensors_obi_dmx: List[int] = field(default_factory=list)   # NEW
     
     # Bitstream/Calibration
-    bitstream_name: str               # Current bitstream filename
-    phase_degrees: float              # Calibration phase shift
-    slack_ns: float                   # Calibration slack value
+    bitstream_name: str = ""
+    phase_degrees: float = 0.0
+    slack_ns: float = 0.0
     
     # Environmental
-    fpga_temp_c: float = 0.0          # FPGA temperature
-    vccint_v: float = 0.0             # VCCINT voltage
-    vcore_v: float = 0.0              # DUT core voltage
-    ambient_temp_c: float = 0.0       # Ambient/external temperature
+    fpga_temp_c: float = 0.0
+    vccint_v: float = 0.0
+    vcore_v: float = 0.0
+    ambient_temp_c: float = 0.0
     
     # Additional metadata
     notes: str = ""
-    event_type: str = "alarm"         # "alarm", "bitstream_change", "manual"
+    event_type: str = "alarm"
     
     def __post_init__(self):
         # Ensure timestamp is a datetime object if it came as a string
@@ -59,64 +74,119 @@ class AgingEvent:
             try:
                 self.timestamp = datetime.fromisoformat(self.timestamp)
             except ValueError:
-                # Fallback if parsing fails (shouldn't happen with valid data)
                 pass
+        
+        # Ensure lists are actual lists (not None)
+        if self.triggered_sensors_f is None:
+            self.triggered_sensors_f = []
+        if self.triggered_sensors_rf is None:
+            self.triggered_sensors_rf = []
+        if self.triggered_sensors_uart is None:
+            self.triggered_sensors_uart = []
+        if self.triggered_sensors_obi_dmx is None:
+            self.triggered_sensors_obi_dmx = []
 
     def to_dict(self) -> dict:
         d = asdict(self)
-        # Convert datetime to string for serialization
         if isinstance(self.timestamp, datetime):
             d['timestamp'] = self.timestamp.isoformat()
         return d
     
     @classmethod
     def from_dict(cls, data: dict) -> 'AgingEvent':
-        # Timestamp string is automatically converted to datetime in __post_init__
+        # Handle backwards compatibility - old logs might not have UART/OBI fields
+        if 'alarm_uart' not in data:
+            data['alarm_uart'] = 0
+        if 'alarm_obi_dmx' not in data:
+            data['alarm_obi_dmx'] = 0
+        if 'triggered_sensors_uart' not in data:
+            data['triggered_sensors_uart'] = []
+        if 'triggered_sensors_obi_dmx' not in data:
+            data['triggered_sensors_obi_dmx'] = []
         return cls(**data)
     
     def to_csv_row(self) -> List[Any]:
-        """Convert to flat CSV row."""
+        """Convert to flat CSV row - UPDATED for 4 sensors."""
         ts_str = self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else str(self.timestamp)
         return [
             ts_str,
             self.experiment_time_hours,
             self.radiation_dose_krad,
+            # F sensors
             f"0x{self.alarm_f:08X}",
-            f"0x{self.alarm_rf:08X}",
             len(self.triggered_sensors_f),
-            len(self.triggered_sensors_rf),
             ','.join(map(str, self.triggered_sensors_f)),
+            # RF sensors
+            f"0x{self.alarm_rf:08X}",
+            len(self.triggered_sensors_rf),
             ','.join(map(str, self.triggered_sensors_rf)),
+            # UART sensors (NEW)
+            f"0x{self.alarm_uart:08X}",
+            len(self.triggered_sensors_uart),
+            ','.join(map(str, self.triggered_sensors_uart)),
+            # OBI_DMX sensors (NEW)
+            f"0x{self.alarm_obi_dmx:08X}",
+            len(self.triggered_sensors_obi_dmx),
+            ','.join(map(str, self.triggered_sensors_obi_dmx)),
+            # Total
+            self.total_triggered_count,
+            # Calibration
             self.bitstream_name,
             self.phase_degrees,
             self.slack_ns,
+            # Environmental
             self.fpga_temp_c,
             self.vccint_v,
             self.vcore_v,
             self.ambient_temp_c,
+            # Metadata
             self.event_type,
             self.notes
         ]
     
+    @property
+    def total_triggered_count(self) -> int:
+        """Total number of triggered sensors across all 4 types."""
+        return (len(self.triggered_sensors_f) + 
+                len(self.triggered_sensors_rf) +
+                len(self.triggered_sensors_uart) +
+                len(self.triggered_sensors_obi_dmx))
+    
     @staticmethod
     def csv_header() -> List[str]:
+        """CSV header - UPDATED for 4 sensors."""
         return [
             'timestamp',
             'experiment_time_hours',
             'radiation_dose_krad',
+            # F sensors
             'alarm_f_hex',
-            'alarm_rf_hex',
             'triggered_count_f',
-            'triggered_count_rf',
             'triggered_bits_f',
+            # RF sensors
+            'alarm_rf_hex',
+            'triggered_count_rf',
             'triggered_bits_rf',
+            # UART sensors (NEW)
+            'alarm_uart_hex',
+            'triggered_count_uart',
+            'triggered_bits_uart',
+            # OBI_DMX sensors (NEW)
+            'alarm_obi_dmx_hex',
+            'triggered_count_obi_dmx',
+            'triggered_bits_obi_dmx',
+            # Total
+            'total_triggered_count',
+            # Calibration
             'bitstream_name',
             'phase_degrees',
             'slack_ns',
+            # Environmental
             'fpga_temp_c',
             'vccint_v',
             'vcore_v',
             'ambient_temp_c',
+            # Metadata
             'event_type',
             'notes'
         ]
@@ -131,7 +201,7 @@ class RadiationModel:
     """
     
     def __init__(self):
-        self.dose_rate_krad_per_hour: float = 1.0  # krad/hour
+        self.dose_rate_krad_per_hour: float = 1.0
         self.experiment_start: Optional[datetime] = None
         self.initial_dose_krad: float = 0.0
     
@@ -175,10 +245,10 @@ class RadiationModel:
 
 class AgingLogger(QObject):
     """
-    Main logging class for aging experiment data.
+    Main logging class for aging experiment data - 4 SENSOR VERSION.
     
     Features:
-    - Records alarm events with full context
+    - Records alarm events with full context for ALL 4 sensor types
     - Calculates radiation dose from experiment time
     - Exports to CSV and JSON formats
     - Tracks which sensors have triggered over the experiment
@@ -193,13 +263,17 @@ class AgingLogger(QObject):
         self.events: List[AgingEvent] = []
         self.radiation_model = RadiationModel()
         
-        # Track sensors that have triggered
+        # Track sensors that have triggered - ALL 4 TYPES
         self._triggered_history_f: set = set()
         self._triggered_history_rf: set = set()
+        self._triggered_history_uart: set = set()       # NEW
+        self._triggered_history_obi_dmx: set = set()    # NEW
         
         # Previous alarm state (for detecting new triggers)
         self._prev_alarm_f: int = 0
         self._prev_alarm_rf: int = 0
+        self._prev_alarm_uart: int = 0       # NEW
+        self._prev_alarm_obi_dmx: int = 0    # NEW
         
         # Current context (updated by main app)
         self._current_bitstream: str = ""
@@ -215,10 +289,7 @@ class AgingLogger(QObject):
         self._csv_file = "aging_log.csv"
     
     def get_all_events(self) -> List[AgingEvent]:
-        """
-        FIX 2: Added missing method required by AgingEventLogWidget.
-        Returns the list of all logged events.
-        """
+        """Returns the list of all logged events."""
         return self.events
 
     def set_current_bitstream(self, name: str, phase_degrees: float, slack_ns: float):
@@ -239,41 +310,53 @@ class AgingLogger(QObject):
         if ambient_temp is not None:
             self._current_ambient_temp = ambient_temp
     
-    def check_and_log_alarms(self, alarm_f: int, alarm_rf: int) -> Optional[AgingEvent]:
+    def check_and_log_alarms(self, alarm_f: int, alarm_rf: int,
+                              alarm_uart: int = 0, alarm_obi_dmx: int = 0) -> Optional[AgingEvent]:
         """
         Check for new alarm triggers and log if any detected.
         
-        Compares current alarm state with previous state to detect
-        newly triggered sensors.
+        UPDATED: Now supports all 4 sensor types.
         
         Returns:
             AgingEvent if new alarms detected, None otherwise
         """
-        # Find newly triggered bits
+        # Find newly triggered bits for ALL 4 types
         new_f = alarm_f & ~self._prev_alarm_f
         new_rf = alarm_rf & ~self._prev_alarm_rf
+        new_uart = alarm_uart & ~self._prev_alarm_uart
+        new_obi_dmx = alarm_obi_dmx & ~self._prev_alarm_obi_dmx
         
         # Update previous state
         self._prev_alarm_f = alarm_f
         self._prev_alarm_rf = alarm_rf
+        self._prev_alarm_uart = alarm_uart
+        self._prev_alarm_obi_dmx = alarm_obi_dmx
         
         # If any new triggers, log the event
-        if new_f or new_rf:
-            return self.log_event(alarm_f, alarm_rf, new_f, new_rf)
+        if new_f or new_rf or new_uart or new_obi_dmx:
+            return self.log_event(
+                alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx,
+                new_f, new_rf, new_uart, new_obi_dmx
+            )
         
         return None
     
     def log_event(self, alarm_f: int, alarm_rf: int,
+                  alarm_uart: int = 0, alarm_obi_dmx: int = 0,
                   triggered_f: int = None, triggered_rf: int = None,
+                  triggered_uart: int = None, triggered_obi_dmx: int = None,
                   event_type: str = "alarm", notes: str = "") -> AgingEvent:
         """
         Log an aging event.
         
+        UPDATED: Now supports all 4 sensor types.
+        
         Args:
             alarm_f: Current ALARM_F register value
             alarm_rf: Current ALARM_RF register value
-            triggered_f: Bits that triggered (if None, uses all active bits)
-            triggered_rf: Bits that triggered (if None, uses all active bits)
+            alarm_uart: Current ALARM_UART register value (NEW)
+            alarm_obi_dmx: Current ALARM_OBI_DMX register value (NEW)
+            triggered_f/rf/uart/obi_dmx: Bits that triggered (if None, uses all active bits)
             event_type: Type of event ("alarm", "bitstream_change", "manual")
             notes: Optional notes
         
@@ -287,24 +370,36 @@ class AgingLogger(QObject):
             triggered_f = alarm_f
         if triggered_rf is None:
             triggered_rf = alarm_rf
+        if triggered_uart is None:
+            triggered_uart = alarm_uart
+        if triggered_obi_dmx is None:
+            triggered_obi_dmx = alarm_obi_dmx
         
-        # Extract triggered bit indices
+        # Extract triggered bit indices for ALL 4 types
         triggered_sensors_f = [i for i in range(32) if triggered_f & (1 << i)]
         triggered_sensors_rf = [i for i in range(32) if triggered_rf & (1 << i)]
+        triggered_sensors_uart = [i for i in range(32) if triggered_uart & (1 << i)]
+        triggered_sensors_obi_dmx = [i for i in range(32) if triggered_obi_dmx & (1 << i)]
         
         # Update history
         self._triggered_history_f.update(triggered_sensors_f)
         self._triggered_history_rf.update(triggered_sensors_rf)
+        self._triggered_history_uart.update(triggered_sensors_uart)
+        self._triggered_history_obi_dmx.update(triggered_sensors_obi_dmx)
         
         # Create event
         event = AgingEvent(
-            timestamp=now,  # FIX: Store as datetime object, not string
+            timestamp=now,
             experiment_time_hours=self.radiation_model.get_experiment_hours(now),
             radiation_dose_krad=self.radiation_model.get_dose(now),
             alarm_f=alarm_f,
             alarm_rf=alarm_rf,
+            alarm_uart=alarm_uart,
+            alarm_obi_dmx=alarm_obi_dmx,
             triggered_sensors_f=triggered_sensors_f,
             triggered_sensors_rf=triggered_sensors_rf,
+            triggered_sensors_uart=triggered_sensors_uart,
+            triggered_sensors_obi_dmx=triggered_sensors_obi_dmx,
             bitstream_name=self._current_bitstream,
             phase_degrees=self._current_phase,
             slack_ns=self._current_slack,
@@ -329,17 +424,23 @@ class AgingLogger(QObject):
         return self.log_event(
             alarm_f=self._prev_alarm_f,
             alarm_rf=self._prev_alarm_rf,
+            alarm_uart=self._prev_alarm_uart,
+            alarm_obi_dmx=self._prev_alarm_obi_dmx,
             triggered_f=0,
             triggered_rf=0,
+            triggered_uart=0,
+            triggered_obi_dmx=0,
             event_type="bitstream_change",
             notes=f"Changed from {old_bitstream} to {new_bitstream}"
         )
     
     def get_triggered_history(self) -> Dict[str, set]:
-        """Get all sensors that have triggered during experiment."""
+        """Get all sensors that have triggered during experiment - ALL 4 TYPES."""
         return {
             'alarm_f': self._triggered_history_f.copy(),
-            'alarm_rf': self._triggered_history_rf.copy()
+            'alarm_rf': self._triggered_history_rf.copy(),
+            'alarm_uart': self._triggered_history_uart.copy(),
+            'alarm_obi_dmx': self._triggered_history_obi_dmx.copy()
         }
     
     def get_events_for_analysis(self) -> List[Dict]:
@@ -350,27 +451,53 @@ class AgingLogger(QObject):
         """
         Get data for slack vs radiation dose plot.
         
-        Returns list of dicts with:
-        - dose_krad: Radiation dose at event
-        - slack_ns: Slack value at event
-        - sensors_triggered: Number of sensors that triggered
+        UPDATED: Total now includes all 4 sensor types.
         """
         data = []
         for event in self.events:
             if event.event_type == "alarm":
-                # Ensure timestamp is datetime for consistency, though not used in plot directly
                 ts = event.timestamp.isoformat() if isinstance(event.timestamp, datetime) else str(event.timestamp)
                 data.append({
                     'dose_krad': event.radiation_dose_krad,
                     'slack_ns': event.slack_ns,
                     'phase_degrees': event.phase_degrees,
-                    'sensors_triggered': len(event.triggered_sensors_f) + len(event.triggered_sensors_rf),
+                    'sensors_triggered': event.total_triggered_count,
                     'timestamp': ts
                 })
         return data
     
+    def get_alarm_summary(self) -> Dict[str, Any]:
+        """
+        Get a summary of alarm activity - NEW METHOD.
+        
+        Returns:
+            Dict with counts and lists of triggered sensors for each type
+        """
+        return {
+            'f': {
+                'total_ever_triggered': len(self._triggered_history_f),
+                'current_active': bin(self._prev_alarm_f).count('1'),
+                'triggered_bits': sorted(self._triggered_history_f)
+            },
+            'rf': {
+                'total_ever_triggered': len(self._triggered_history_rf),
+                'current_active': bin(self._prev_alarm_rf).count('1'),
+                'triggered_bits': sorted(self._triggered_history_rf)
+            },
+            'uart': {
+                'total_ever_triggered': len(self._triggered_history_uart),
+                'current_active': bin(self._prev_alarm_uart).count('1'),
+                'triggered_bits': sorted(self._triggered_history_uart)
+            },
+            'obi_dmx': {
+                'total_ever_triggered': len(self._triggered_history_obi_dmx),
+                'current_active': bin(self._prev_alarm_obi_dmx).count('1'),
+                'triggered_bits': sorted(self._triggered_history_obi_dmx)
+            }
+        }
+    
     def save_json(self, filepath: str = None):
-        """Save log to JSON file."""
+        """Save log to JSON file - UPDATED for 4 sensors."""
         filepath = filepath or self._log_file
         
         data = {
@@ -378,7 +505,9 @@ class AgingLogger(QObject):
             'events': [e.to_dict() for e in self.events],
             'triggered_history': {
                 'alarm_f': list(self._triggered_history_f),
-                'alarm_rf': list(self._triggered_history_rf)
+                'alarm_rf': list(self._triggered_history_rf),
+                'alarm_uart': list(self._triggered_history_uart),
+                'alarm_obi_dmx': list(self._triggered_history_obi_dmx)
             }
         }
         
@@ -396,7 +525,7 @@ class AgingLogger(QObject):
                 writer.writerow(event.to_csv_row())
     
     def load_json(self, filepath: str = None) -> bool:
-        """Load log from JSON file."""
+        """Load log from JSON file - UPDATED for backwards compatibility."""
         filepath = filepath or self._log_file
         
         if not os.path.exists(filepath):
@@ -415,6 +544,9 @@ class AgingLogger(QObject):
             history = data.get('triggered_history', {})
             self._triggered_history_f = set(history.get('alarm_f', []))
             self._triggered_history_rf = set(history.get('alarm_rf', []))
+            # Handle old logs that don't have UART/OBI_DMX
+            self._triggered_history_uart = set(history.get('alarm_uart', []))
+            self._triggered_history_obi_dmx = set(history.get('alarm_obi_dmx', []))
             
             return True
             
@@ -423,9 +555,13 @@ class AgingLogger(QObject):
             return False
     
     def clear(self):
-        """Clear all logged events."""
+        """Clear all logged events - ALL 4 TYPES."""
         self.events.clear()
         self._triggered_history_f.clear()
         self._triggered_history_rf.clear()
+        self._triggered_history_uart.clear()
+        self._triggered_history_obi_dmx.clear()
         self._prev_alarm_f = 0
         self._prev_alarm_rf = 0
+        self._prev_alarm_uart = 0
+        self._prev_alarm_obi_dmx = 0
