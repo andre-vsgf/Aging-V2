@@ -111,3 +111,4 @@ $RECYCLE.BIN/
 # User-specific configuration
 config.local.json
 settings.local.json
+settings.json

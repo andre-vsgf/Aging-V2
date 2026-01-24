@@ -113,7 +113,7 @@ class UARTRouter(QObject):
         self._sys_telemetry_regex = re.compile(
             r'\$SYS,FT,([0-9A-Fa-f]{1,4}),VI,([0-9A-Fa-f]{1,4}),'
             r'AF,([0-9A-Fa-f]{1,8}),AR,([0-9A-Fa-f]{1,8}),'
-            r'(?:AU|AD),([0-9A-Fa-f]{1,8}),AO,([0-9A-Fa-f]{1,8})\*([0-9A-Fa-f]{2})',
+            r'AU,([0-9A-Fa-f]{1,8}),AO,([0-9A-Fa-f]{1,8})\*([0-9A-Fa-f]{2})',
             re.IGNORECASE
         )
         
@@ -435,7 +435,7 @@ class UARTRouter(QObject):
         # 5. Regular text line (not telemetry/sensor data)
         # =====================================================================
         if not line_str.startswith('$'):
-            self.log_text_received.emit(f"[LIXO] {line_str}")
+            self.log_text_received.emit(f"[CROC] {line_str}")
 
     def _handle_protocol_event(self, evt):
         """Handle parsed protocol events."""

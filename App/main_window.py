@@ -1,17 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-Main Window for CROC FPGA Monitor
+Main Window for CROC FPGA Monitor - INTEGRATED VERSION
 
-Redesigned interface with:
-- Visual sensor status grid (4 registers, 2 active + 2 placeholder)
-- Aging analysis and logging system
+Features:
+- Visual sensor status grid (4 registers)
+- Aging analysis with auto-program on alarm
+- Smart logging for long experiments (weeks)
 - Telemetry graphs
-- FPGA programming controls with auto-reprogram
+- FPGA programming controls
 - STM32 voltage control
+
+UPDATES:
+- Integrated SmartLogger for efficient long-term logging
+- Integrated ExperimentController for auto-program
+- Support for all 4 sensor types (F, RF, UART, OBI)
 """
 
 import os
 import time
+from datetime import datetime
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QGroupBox, QLabel, QTextEdit, QLineEdit,
@@ -25,19 +32,21 @@ from PySide6.QtGui import QFont, QTextCursor
 import config
 from router import UARTRouter
 from fpga_manager import FPGAManager, BitstreamManager
-# FIX 1: Import the correct class name directly
 from sensor_widget import SensorVisualizationWidget
 from telemetry_widget import TelemetryWidget, TelemetryData
-from aging_analysis_widget import AgingAnalysisWidget
 from serial_thread import get_available_ports
 from protocol import (
     build_voltage_command, build_page_command, build_message_command,
     compute_crc16_modbus, CRC_ENDIAN
 )
 
+# NEW: Import smart logging and experiment controller
+from smart_logger import SmartLogger
+from aging_analysis_widget_v2 import AgingAnalysisWidgetV2
+
 
 class MainWindow(QMainWindow):
-    """Main application window."""
+    """Main application window with integrated smart logging."""
     
     def __init__(self):
         super().__init__()
@@ -49,23 +58,50 @@ class MainWindow(QMainWindow):
         self.fpga_manager = FPGAManager()
         self.bitstream_manager = BitstreamManager()
         
-        # State - Rastreamento de todos os 4 tipos de sensores
+        # State - Tracking all 4 sensor types
         self._last_alarm_f = 0
         self._last_alarm_rf = 0
-        self._last_alarm_uart = 0      # UART sensors (alias: DM)
-        self._last_alarm_obi_dmx = 0   # OBI DMX sensors (alias: OBI)
+        self._last_alarm_uart = 0
+        self._last_alarm_obi_dmx = 0
+        
+        # Experiment start time
+        self._experiment_start_time = None
+        
+        # Initialize Smart Logger for efficient long-term logging
+        self._init_smart_logger()
         
         # Build UI
         self._init_ui()
         self._connect_signals()
         
-        # Timer for periodic updates (radiation time, etc.)
+        # Timer for periodic updates
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self._periodic_update)
         self.update_timer.start(1000)
         
         # Auto-connect if port is configured
         QTimer.singleShot(500, self._auto_connect)
+    
+    def _init_smart_logger(self):
+        """Initialize the smart logger for efficient data recording."""
+        log_folder = os.path.join(os.getcwd(), "experiment_logs")
+        experiment_name = f"croc_aging_{datetime.now().strftime('%Y%m%d')}"
+        
+        self.smart_logger = SmartLogger(
+            log_folder=log_folder,
+            experiment_name=experiment_name,
+            mode="adaptive",          # Log more during changes, less when stable
+            normal_interval_sec=60.0,  # Log every 60s when stable
+            change_interval_sec=1.0,   # Log every 1s during changes
+            summary_interval_sec=300.0 # Summary every 5 minutes
+        )
+        
+        # Record experiment start
+        self._experiment_start_time = datetime.now()
+        self.smart_logger.log_event("experiment_start", {
+            "timestamp": self._experiment_start_time.isoformat(),
+            "app_version": "2.0-smart"
+        })
 
     def _init_ui(self):
         """Initialize the user interface."""
@@ -86,8 +122,8 @@ class MainWindow(QMainWindow):
         sensors_tab = self._create_sensors_tab()
         self.main_tabs.addTab(sensors_tab, "🎛 Sensors & Control")
         
-        # Tab 2: Aging Analysis (NEW)
-        self.aging_widget = AgingAnalysisWidget()
+        # Tab 2: Aging Analysis (V2 with auto-program)
+        self.aging_widget = AgingAnalysisWidgetV2()
         self.main_tabs.addTab(self.aging_widget, "📈 Aging Analysis")
         
         # Tab 3: Telemetry Graphs
@@ -114,7 +150,6 @@ class MainWindow(QMainWindow):
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         
-        # FIX 1 (Continued): Instantiate the correct class
         self.sensor_widget = SensorVisualizationWidget()
         left_layout.addWidget(self.sensor_widget)
         
@@ -127,17 +162,17 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(left_panel, 2)
         
-        # Criamos um container para empilhar o painel e o botão
+        # Right container
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
 
-        # 1. Quick Info Panel
+        # Quick Info Panel
         quick_info = self._create_quick_info_panel()
         right_layout.addWidget(quick_info)
 
-        # 2. Reset Button (NOVO)
+        # Reset Button
         self.btn_reset_fpga = QPushButton("⚠️ RESET FPGA (VIO)")
         self.btn_reset_fpga.setMinimumHeight(45)
         self.btn_reset_fpga.setToolTip("Triggers a soft reset via VIO 'vio_reset' probe")
@@ -156,15 +191,47 @@ class MainWindow(QMainWindow):
         self.btn_reset_fpga.clicked.connect(self._reset_fpga_action)
         right_layout.addWidget(self.btn_reset_fpga)
         
-        # Empurra tudo para cima
+        # Logging status
+        log_status = self._create_logging_status_panel()
+        right_layout.addWidget(log_status)
+        
         right_layout.addStretch()
         
         layout.addWidget(right_container, 1)
         
         return tab
     
-    # ... (Rest of the file remains unchanged, omitted for brevity) ...
-    # Be sure to include the rest of the MainWindow class implementation
+    def _create_logging_status_panel(self) -> QWidget:
+        """Create a panel showing logging status."""
+        panel = QGroupBox("📊 Logging Status")
+        layout = QVBoxLayout(panel)
+        
+        self.lbl_log_mode = QLabel(f"Mode: {self.smart_logger.mode.upper()}")
+        self.lbl_log_mode.setStyleSheet("color: #4fc3f7;")
+        layout.addWidget(self.lbl_log_mode)
+        
+        self.lbl_log_rows = QLabel("Rows: 0")
+        layout.addWidget(self.lbl_log_rows)
+        
+        self.lbl_log_size = QLabel("Size: 0 MB")
+        layout.addWidget(self.lbl_log_size)
+        
+        self.lbl_log_events = QLabel("Events: 0")
+        layout.addWidget(self.lbl_log_events)
+        
+        # Update timer for logging stats
+        self.log_stats_timer = QTimer()
+        self.log_stats_timer.timeout.connect(self._update_logging_stats)
+        self.log_stats_timer.start(5000)  # Update every 5 seconds
+        
+        return panel
+    
+    def _update_logging_stats(self):
+        """Update the logging statistics display."""
+        stats = self.smart_logger.get_statistics()
+        self.lbl_log_rows.setText(f"Rows: {stats['rows_logged']:,}")
+        self.lbl_log_size.setText(f"Size: {stats['total_size_mb']:.2f} MB")
+        self.lbl_log_events.setText(f"Events: {stats['events_logged']}")
     
     def _create_telemetry_tab(self) -> QWidget:
         """Create the telemetry graphs tab."""
@@ -180,7 +247,6 @@ class MainWindow(QMainWindow):
         panel = QGroupBox("Quick Status")
         layout = QVBoxLayout(panel)
         
-        # Current values
         grid = QGridLayout()
         
         # STM32 values
@@ -246,6 +312,13 @@ class MainWindow(QMainWindow):
         
         status_layout.addStretch()
         
+        # Experiment controller state
+        self.lbl_exp_state = QLabel("Exp: IDLE")
+        self.lbl_exp_state.setStyleSheet("color: #888;")
+        status_layout.addWidget(self.lbl_exp_state)
+        
+        status_layout.addStretch()
+        
         # Timestamp
         self.lbl_time = QLabel("")
         self.lbl_time.setStyleSheet("color: #888;")
@@ -302,7 +375,7 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(bitstream_group)
         
-        # --- Programming group ---
+        # Programming group
         prog_group = QGroupBox("FPGA Programming")
         pg_layout = QVBoxLayout(prog_group)
         
@@ -315,10 +388,10 @@ class MainWindow(QMainWindow):
         # Buttons Layout
         btns_layout = QHBoxLayout()
         
-        # SRAM Button (Default)
+        # SRAM Button
         self.btn_program = QPushButton("▶ PROGRAM (SRAM)")
         self.btn_program.setMinimumHeight(50)
-        self.btn_program.setToolTip("Fast, volatile programming (lost on power cycle). Uses .bit files.")
+        self.btn_program.setToolTip("Fast, volatile programming")
         self.btn_program.setStyleSheet("""
             QPushButton { background-color: #0d6efd; color: white; font-weight: bold; font-size: 11pt; border-radius: 5px; }
             QPushButton:hover { background-color: #0b5ed7; }
@@ -327,10 +400,10 @@ class MainWindow(QMainWindow):
         self.btn_program.clicked.connect(lambda: self._program_fpga(mode="sram"))
         btns_layout.addWidget(self.btn_program)
         
-        # FLASH Button (New)
+        # FLASH Button
         self.btn_flash = QPushButton("⚡ BURN FLASH")
         self.btn_flash.setMinimumHeight(50)
-        self.btn_flash.setToolTip("Slow, persistent programming (keeps after reboot). Requires .bin files.")
+        self.btn_flash.setToolTip("Slow, persistent programming")
         self.btn_flash.setStyleSheet("""
             QPushButton { background-color: #d63384; color: white; font-weight: bold; font-size: 11pt; border-radius: 5px; }
             QPushButton:hover { background-color: #c2185b; }
@@ -452,14 +525,12 @@ class MainWindow(QMainWindow):
         
         baud_layout = QHBoxLayout()
         self.cmb_baud = QComboBox()
-        self.cmb_baud.addItems(["9600", "19200", "38400", "57600", "115200", "230400", "460800"])
+        self.cmb_baud.addItems(["9600", "19200", "38400", "57600", "115200", "125000", "230400", "460800", "921600"])
         self.cmb_baud.setCurrentText(str(config.SYSTEM_BAUD))
         baud_layout.addWidget(QLabel("Baud:"))
-        baud_layout.addWidget(self.cmb_baud)
-        baud_layout.addStretch()
+        baud_layout.addWidget(self.cmb_baud, 1)
         sg_layout.addLayout(baud_layout)
         
-        # Connect button
         self.btn_connect = QPushButton("Connect")
         self.btn_connect.setCheckable(True)
         self.btn_connect.clicked.connect(self._toggle_connection)
@@ -468,65 +539,50 @@ class MainWindow(QMainWindow):
         layout.addWidget(serial_group)
         
         # Vivado path group
-        vivado_group = QGroupBox("Vivado Configuration")
+        vivado_group = QGroupBox("Vivado Path")
         vg_layout = QVBoxLayout(vivado_group)
         
-        vpath_layout = QHBoxLayout()
-        self.txt_vivado_path = QLineEdit(config.VIVADO_PATH)
-        self.txt_vivado_path.setPlaceholderText("Path to vivado executable...")
+        vivado_layout = QHBoxLayout()
+        self.txt_vivado_path = QLineEdit(config.VIVADO_PATH or "")
+        self.txt_vivado_path.setPlaceholderText("Path to Vivado executable...")
         btn_browse_vivado = QPushButton("Browse...")
         btn_browse_vivado.clicked.connect(self._browse_vivado)
-        vpath_layout.addWidget(self.txt_vivado_path, 1)
-        vpath_layout.addWidget(btn_browse_vivado)
-        vg_layout.addLayout(vpath_layout)
+        vivado_layout.addWidget(self.txt_vivado_path, 1)
+        vivado_layout.addWidget(btn_browse_vivado)
+        vg_layout.addLayout(vivado_layout)
         
         layout.addWidget(vivado_group)
         
         # Save button
-        self.btn_save_settings = QPushButton("Save Settings")
-        self.btn_save_settings.clicked.connect(self._save_settings)
-        layout.addWidget(self.btn_save_settings)
+        btn_save = QPushButton("Save Settings")
+        btn_save.clicked.connect(self._save_settings)
+        layout.addWidget(btn_save)
         
         layout.addStretch()
         
         self.control_tabs.addTab(tab, "Settings")
 
     def _create_log_panel(self) -> QWidget:
-        """Create the log terminal panel."""
+        """Create the log display panel."""
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
         
-        # Header
-        header = QLabel("Communication Log")
-        header.setStyleSheet("font-weight: bold; font-size: 11pt; padding: 5px;")
-        layout.addWidget(header)
-        
-        # Log text area
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setFont(QFont("Consolas" if config.IS_WINDOWS else "Monospace", 10))
-        self.log_text.setStyleSheet("""
-            QTextEdit {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                border: 1px solid #3f3f46;
-            }
-        """)
+        self.log_text.setFont(QFont("Consolas", 9))
         layout.addWidget(self.log_text, 1)
         
-        # Log controls
         ctrl_layout = QHBoxLayout()
         
         self.chk_autoscroll = QCheckBox("Auto-scroll")
         self.chk_autoscroll.setChecked(True)
         ctrl_layout.addWidget(self.chk_autoscroll)
         
-        ctrl_layout.addStretch()
-        
         btn_clear = QPushButton("Clear")
         btn_clear.clicked.connect(self.log_text.clear)
         ctrl_layout.addWidget(btn_clear)
+        
+        ctrl_layout.addStretch()
         
         btn_save_log = QPushButton("Save Log")
         btn_save_log.clicked.connect(self._save_log)
@@ -552,8 +608,12 @@ class MainWindow(QMainWindow):
         self.fpga_manager.finished.connect(self._on_program_finished)
         self.fpga_manager.progress.connect(self.prog_bar.setValue)
         
-        # Aging analysis signals
-        self.aging_widget.request_reprogram.connect(self._on_auto_reprogram_request)
+        # Aging analysis signals (V2 - uses filepath)
+        self.aging_widget.request_reprogram.connect(self._on_auto_reprogram_filepath)
+        
+        # Experiment controller state changes
+        self.aging_widget.controller.state_changed.connect(self._on_experiment_state_changed)
+        self.aging_widget.controller.log_message.connect(self.log)
 
     def _auto_connect(self):
         """Attempt to auto-connect to configured port."""
@@ -562,37 +622,39 @@ class MainWindow(QMainWindow):
             self._toggle_connection(True)
             self.btn_connect.setChecked(True)
 
-    def _check_new_alarms(self, current: int, previous: int) -> tuple:
-        '''
-        Check for new alarm bits.
-        
-        Returns:
-            tuple: (has_new_alarms: bool, new_bits: int, cleared_bits: int)
-        '''
-        new_bits = current & ~previous      # Bits que eram 0 e agora são 1
-        cleared_bits = previous & ~current  # Bits que eram 1 e agora são 0
-        
-        return (new_bits != 0), new_bits, cleared_bits
-
     # ========== Slot Handlers ==========
+
+    @Slot(str)
+    def _on_experiment_state_changed(self, state: str):
+        """Handle experiment state changes."""
+        self.lbl_exp_state.setText(f"Exp: {state}")
+        
+        # Color-code the state
+        colors = {
+            'IDLE': '#888',
+            'RUNNING': '#28a745',
+            'ALARM_DETECTED': '#ffc107',
+            'REPROGRAMMING': '#17a2b8',
+            'COOLDOWN': '#6c757d',
+            'PAUSED': '#fd7e14',
+            'FINISHED': '#6610f2'
+        }
+        color = colors.get(state, '#888')
+        self.lbl_exp_state.setStyleSheet(f"color: {color}; font-weight: bold;")
 
     @Slot()
     def _reset_fpga_action(self):
         """Handler for the Reset FPGA button."""
-        
-        # Tenta achar o arquivo LTX baseado no bitstream selecionado
         current_bit = self.bitstream_manager.current()
         ltx_path = None
         
         if current_bit:
-            # Remove a extensão (.bit ou .bin) e adiciona .ltx
             base_path = os.path.splitext(current_bit)[0]
             candidate = base_path + ".ltx"
             
             if os.path.exists(candidate):
                 ltx_path = candidate
             else:
-                # Se não achar, avisa mas permite tentar (vai falhar no TCL provavelmente)
                 self.router.log_message.emit(f"⚠ Warning: .ltx file not found for {os.path.basename(current_bit)}")
 
         reply = QMessageBox.question(
@@ -603,7 +665,6 @@ class MainWindow(QMainWindow):
         )
         
         if reply == QMessageBox.Yes:
-            # Passa o caminho do LTX para o manager
             self.fpga_manager.reset(ltx_path)
     
     @Slot(str)
@@ -622,31 +683,42 @@ class MainWindow(QMainWindow):
 
     @Slot(dict)
     def _on_sensor_data(self, data: dict):
-        '''
-        Handle incoming sensor data from all 4 sensor types.
-        
-        CORREÇÃO: Agora processa e passa todos os 4 tipos de sensores.
-        '''
-        # Extract all 4 sensor values (aceita ambas nomenclaturas)
+        """Handle incoming sensor data from all 4 sensor types."""
+        # Extract all 4 sensor values
         alarm_f = data.get('alarm_f', 0)
         alarm_rf = data.get('alarm_rf', 0)
-        
-        # UART: aceita 'alarm_dm' ou 'alarm_uart'
         alarm_uart = data.get('alarm_dm', data.get('alarm_uart', 0))
-        
-        # OBI_DMX: aceita 'alarm_obi_dmx' ou 'alarm_obi'
         alarm_obi_dmx = data.get('alarm_obi_dmx', data.get('alarm_obi', 0))
         
-        # Update visualization widget (handles 4 sensors)
-        # NOTA: O sensor_widget usa a interface legacy com nomes DM/OBI
+        # Update visualization widget
         self.sensor_widget.updateSensorData(alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx)
         
-        # Check for NEW alarms across ALL 4 sensor types
-        # Compare with last known values
+        # Get current environmental data
+        fpga_temp = data.get('fpga_temp', 0)
+        vccint = data.get('vccint', 0)
+        vcore = data.get('vcore', 0)
+        iout = data.get('iout', 0)
+        
+        # Log to SmartLogger (will filter based on mode)
+        logged = self.smart_logger.log_data(
+            alarm_f=alarm_f,
+            alarm_rf=alarm_rf,
+            alarm_uart=alarm_uart,
+            alarm_obi=alarm_obi_dmx,
+            fpga_temp=fpga_temp,
+            vccint=vccint,
+            vcore=vcore,
+            iout=iout
+        )
+        
+        # Process through aging widget (for auto-program)
+        self.aging_widget.process_sensor_data(alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx)
+        
+        # Check for NEW alarms (for UI logging)
         new_alarm_detected = False
         
         if alarm_f != self._last_alarm_f:
-            new_f = alarm_f & ~self._last_alarm_f  # Novos bits
+            new_f = alarm_f & ~self._last_alarm_f
             if new_f:
                 new_alarm_detected = True
                 
@@ -665,30 +737,20 @@ class MainWindow(QMainWindow):
             if new_obi:
                 new_alarm_detected = True
         
-        # Check for new alarms and log to aging analysis (ALL 4 sensors)
-        # CORREÇÃO: Agora passa todos os 4 tipos
-        new_alarms = self.aging_widget.check_alarms(
-            alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx
-        )
-        
         # Log if new alarms detected
-        if new_alarm_detected or new_alarms:
-            # Get counts (prefer from data, fallback to calculation)
-            f_count = data.get('alarm_f_count', bin(alarm_f).count('1'))
-            rf_count = data.get('alarm_rf_count', bin(alarm_rf).count('1'))
-            uart_count = data.get('alarm_uart_count', 
-                                data.get('alarm_dm_count', bin(alarm_uart).count('1')))
-            obi_count = data.get('alarm_obi_count', bin(alarm_obi_dmx).count('1'))
+        if new_alarm_detected:
+            f_count = bin(alarm_f).count('1')
+            rf_count = bin(alarm_rf).count('1')
+            uart_count = bin(alarm_uart).count('1')
+            obi_count = bin(alarm_obi_dmx).count('1')
             total = f_count + rf_count + uart_count + obi_count
             
             self.log(
                 f"[AGING] New alarm detected! Total={total} "
                 f"(F={f_count}, RF={rf_count}, UART={uart_count}, OBI={obi_count})"
             )
-            self.log(f"  F=0x{alarm_f:08X} RF=0x{alarm_rf:08X} "
-                    f"UART=0x{alarm_uart:08X} OBI=0x{alarm_obi_dmx:08X}")
         
-        # Store last values for all 4 sensors
+        # Store last values
         self._last_alarm_f = alarm_f
         self._last_alarm_rf = alarm_rf
         self._last_alarm_uart = alarm_uart
@@ -706,7 +768,7 @@ class MainWindow(QMainWindow):
 
     @Slot(dict)
     def _on_telemetry_data(self, data: dict):
-        '''Handle telemetry data from router.'''
+        """Handle telemetry data from router."""
         # Update telemetry widget
         self.telemetry_widget.updateFromDict(data)
         
@@ -730,7 +792,7 @@ class MainWindow(QMainWindow):
         power = vcore * iout
         self.lbl_power.setText(f"Power: {power:.3f} W")
         
-        # Update aging logger with environmental data
+        # Update aging widget with environmental data
         self.aging_widget.set_environmental_data(
             fpga_temp=data.get('fpga_temp'),
             vccint=data.get('vccint'),
@@ -749,40 +811,47 @@ class MainWindow(QMainWindow):
     def _on_program_finished(self, success: bool, msg: str):
         """Handle FPGA programming finished."""
         self.btn_program.setEnabled(True)
-        self.btn_program.setText("▶ PROGRAM FPGA")
+        self.btn_program.setText("▶ PROGRAM (SRAM)")
+        
+        bitstream_name = self.bitstream_manager.current_name()
         
         if success:
-            bitstream_name = self.bitstream_manager.current_name()
             self.lbl_bitstream.setText(f"Bitstream: {bitstream_name}")
             
-            # Update aging widget with new bitstream
-            self.aging_widget.set_current_bitstream(bitstream_name)
+            # Log to SmartLogger
+            self.smart_logger.log_event("program_success", {
+                "bitstream": bitstream_name
+            })
             
-            # Log bitstream change to aging logger
-            cal = self.aging_widget.cal_manager.get_calibration(bitstream_name)
-            if cal:
-                self.log(f"[AGING] Bitstream changed to {bitstream_name} (Phase: {cal.phase_degrees:.2f}°, Slack: {cal.slack_ns:.3f} ns)")
+            # Notify aging widget
+            self.aging_widget.on_reprogram_complete(True)
         else:
             self.lbl_bitstream.setText("Bitstream: Programming failed")
+            self.aging_widget.on_reprogram_complete(False)
     
     @Slot(str)
-    def _on_auto_reprogram_request(self, bitstream_name: str):
-        """Handle auto-reprogram request from aging analysis."""
-        self.log(f"[AUTO-REPROGRAM] Alarm triggered! Switching to: {bitstream_name}")
+    def _on_auto_reprogram_filepath(self, filepath: str):
+        """Handle auto-reprogram request from experiment controller (V2 - filepath)."""
+        self.log(f"[AUTO-REPROGRAM] Alarm triggered! Switching to: {os.path.basename(filepath)}")
         
-        # Find bitstream in list and program it
-        names = self.bitstream_manager.get_all_names()
-        if bitstream_name in names:
-            idx = names.index(bitstream_name)
-            self.bitstream_manager.set_index(idx)
-            self.cmb_bitstreams.setCurrentIndex(idx)
-            
-            # Start programming
-            bitstream_path = self.bitstream_manager.current()
-            if bitstream_path:
-                self.fpga_manager.program(bitstream_path)
-        else:
-            self.log(f"[ERROR] Bitstream not found: {bitstream_name}")
+        # Log the transition event
+        self.smart_logger.log_event("auto_reprogram", {
+            "filepath": filepath,
+            "reason": "alarm_triggered"
+        })
+        
+        # Verify file exists
+        if not os.path.exists(filepath):
+            self.log(f"[ERROR] Bitstream file not found: {filepath}")
+            return
+        
+        # Check if already programming
+        if self.fpga_manager.is_programming:
+            self.log("[AUTO-PROGRAM] ⚠ Already programming, request queued")
+            return
+        
+        # Start programming
+        self.fpga_manager.program(filepath, mode="sram")
 
     # ========== UI Actions ==========
     
@@ -804,22 +873,20 @@ class MainWindow(QMainWindow):
         for port, desc in ports:
             self.cmb_ports.addItem(f"{port}", port)
         
-        # Restore selection if possible
         idx = self.cmb_ports.findData(current)
         if idx >= 0:
             self.cmb_ports.setCurrentIndex(idx)
 
     def _browse_bitstream_dir(self):
-            """Browse for bitstream directory."""
-            path = QFileDialog.getExistingDirectory(
-                self, "Select Bitstream Directory",
-                self.txt_bitstream_dir.text()
-            )
-            if path:
-                self.txt_bitstream_dir.setText(path)
-                self._refresh_bitstreams()
-                # FIX: Automatically save settings to persist the new path immediately
-                self._save_settings()
+        """Browse for bitstream directory."""
+        path = QFileDialog.getExistingDirectory(
+            self, "Select Bitstream Directory",
+            self.txt_bitstream_dir.text()
+        )
+        if path:
+            self.txt_bitstream_dir.setText(path)
+            self._refresh_bitstreams()
+            self._save_settings()
 
     def _refresh_bitstreams(self):
         """Refresh bitstream list."""
@@ -842,7 +909,7 @@ class MainWindow(QMainWindow):
             self.cmb_bitstreams.setCurrentIndex(self.bitstream_manager.get_index())
 
     def _program_fpga(self, mode="sram"):
-        """Start FPGA programming (SRAM or FLASH)."""
+        """Start FPGA programming."""
         idx = self.cmb_bitstreams.currentIndex()
         self.bitstream_manager.set_index(idx)
         
@@ -853,7 +920,6 @@ class MainWindow(QMainWindow):
         
         target_file = current_file
         
-        # Se for Flash, tenta achar o .bin correspondente ao .bit selecionado
         if mode == "flash":
             if current_file.lower().endswith('.bit'):
                 bin_candidate = current_file[:-4] + ".bin"
@@ -861,8 +927,9 @@ class MainWindow(QMainWindow):
                     target_file = bin_candidate
                     self.log(f"Auto-selected .bin file for flash: {os.path.basename(target_file)}")
                 else:
-                    self.log(f"Error: .bin file not found for flash programming. Expected: {bin_candidate}")
-                    QMessageBox.warning(self, "Missing File", f"Flash programming requires a .bin file.\nCould not find: {bin_candidate}\n\nPlease generate a bin file in Vivado.")
+                    self.log(f"Error: .bin file not found for flash programming.")
+                    QMessageBox.warning(self, "Missing File", 
+                        f"Flash programming requires a .bin file.\nCould not find: {bin_candidate}")
                     return
         
         self.fpga_manager.program(target_file, mode=mode)
@@ -902,7 +969,6 @@ class MainWindow(QMainWindow):
         """Send command to STM32 with CRC."""
         payload, log_str, _ = cmd_tuple
         
-        # Remove header byte, add CRC
         core = payload[1:]
         crc = compute_crc16_modbus(core)
         final = core + crc.to_bytes(2, CRC_ENDIAN)
@@ -952,7 +1018,6 @@ class MainWindow(QMainWindow):
         timestamp = time.strftime("%H:%M:%S")
         self.log_text.append(f"[{timestamp}] {message}")
         
-        # Auto-scroll
         if self.chk_autoscroll.isChecked():
             cursor = self.log_text.textCursor()
             cursor.movePosition(QTextCursor.End)
@@ -965,6 +1030,7 @@ class MainWindow(QMainWindow):
         # Stop timers
         self.clock_timer.stop()
         self.update_timer.stop()
+        self.log_stats_timer.stop()
         
         # Save aging analysis data
         try:
@@ -972,6 +1038,13 @@ class MainWindow(QMainWindow):
             self.log("Aging data saved.")
         except Exception as e:
             self.log(f"Warning: Could not save aging data: {e}")
+        
+        # Close smart logger
+        try:
+            self.smart_logger.close()
+            self.log("Smart logger closed.")
+        except Exception as e:
+            self.log(f"Warning: Could not close smart logger: {e}")
         
         # Disconnect serial
         self.router.disconnect_serial()

@@ -1,0 +1,1 @@
+period_start,period_end,duration_sec,alarm_f_max,alarm_rf_max,alarm_uart_max,alarm_obi_max,total_alarms_max,alarm_changes,fpga_temp_avg,fpga_temp_min,fpga_temp_max,vccint_avg,power_avg,samples
