@@ -1,28 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-Experiment Controller - Auto-Program & Bitstream Queue Manager
+Experiment Controller V2 - Auto-Program & Bitstream Queue Manager
 
-Manages aging experiments with:
-- Bitstream queue (ordered by phase, decreasing in 5° steps)
-- Auto-program on alarm trigger with configurable timeout
-- Detailed transition logging (which alarms triggered, timestamps)
-- Anti-loop protection (cooldown period after reprogramming)
+UPDATED:
+- Negative phase support (m330 = -330°, ordering from highest to lowest)
+- Sensor filtering (enable/disable which sensors trigger transitions)
+- Initial bitstream verification (programs first bitstream on start)
+- Radiation dose tracking
 
 WORKFLOW:
-1. User loads bitstreams into queue (sorted by phase, highest first)
-2. Experiment starts with no alarms active
-3. When ANY alarm triggers → wait for stabilization → reprogram with next bitstream
-4. New bitstream has +5° more "slack" → alarms should clear
+1. User loads bitstreams from directory (auto-sorted by phase, descending)
+2. Experiment starts - verifies first bitstream is programmed
+3. When enabled sensor alarm triggers → wait → reprogram with next bitstream
+4. New bitstream has less negative phase (more "slack") → alarms should clear
 5. Repeat until end of queue or experiment stopped
 
 Author: CROC Project
 """
 
 import os
+import re
 import json
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict, field
-from typing import List, Optional, Dict, Any, Callable
+from typing import List, Optional, Dict, Any, Callable, Set
 from pathlib import Path
 from enum import Enum, auto
 
@@ -31,13 +32,14 @@ from PySide6.QtCore import QObject, Signal, Slot, QTimer
 
 class ExperimentState(Enum):
     """State machine for experiment controller."""
-    IDLE = auto()           # Not running
-    RUNNING = auto()        # Normal operation, monitoring alarms
-    ALARM_DETECTED = auto() # Alarm detected, waiting for stabilization
-    REPROGRAMMING = auto()  # FPGA being reprogrammed
-    COOLDOWN = auto()       # Post-reprogram cooldown (anti-loop)
-    PAUSED = auto()         # Temporarily paused
-    FINISHED = auto()       # Reached end of bitstream queue
+    IDLE = auto()              # Not running
+    PROGRAMMING_INITIAL = auto()  # Programming first bitstream
+    RUNNING = auto()           # Normal operation, monitoring alarms
+    ALARM_DETECTED = auto()    # Alarm detected, waiting for stabilization
+    REPROGRAMMING = auto()     # FPGA being reprogrammed
+    COOLDOWN = auto()          # Post-reprogram cooldown (anti-loop)
+    PAUSED = auto()            # Temporarily paused
+    FINISHED = auto()          # Reached end of bitstream queue
 
 
 @dataclass
@@ -45,7 +47,8 @@ class BitstreamEntry:
     """Entry in the bitstream queue."""
     filepath: str           # Full path to .bit file
     name: str               # Filename only
-    phase_degrees: float    # Phase shift in degrees
+    phase_degrees: float    # Phase shift in degrees (negative values)
+    phase_absolute: int     # Absolute value from filename (e.g., 330)
     order: int              # Position in queue (0 = first)
     
     def to_dict(self) -> dict:
@@ -67,6 +70,7 @@ class TransitionEvent:
     trigger_alarms: Dict[str, List[int]]  # {sensor_type: [bit_indices]}
     total_alarms: int
     experiment_hours: float
+    radiation_dose_krad: float = 0.0
     fpga_temp: float = 0.0
     vccint: float = 0.0
     notes: str = ""
@@ -90,6 +94,7 @@ class TransitionEvent:
             f"  From: {self.from_bitstream} ({self.from_phase:.1f}°)",
             f"  To:   {self.to_bitstream} ({self.to_phase:.1f}°)",
             f"  Experiment Time: {self.experiment_hours:.2f} hours",
+            f"  Radiation Dose: {self.radiation_dose_krad:.2f} krad",
             f"  FPGA Temp: {self.fpga_temp:.2f}°C | VCCINT: {self.vccint:.3f}V",
             f"",
             f"  TRIGGER ALARMS ({self.total_alarms} total):"
@@ -106,6 +111,41 @@ class TransitionEvent:
         return "\n".join(lines)
 
 
+class RadiationModel:
+    """Simple radiation dose model."""
+    
+    def __init__(self):
+        self.dose_rate_krad_per_hour: float = 0.0
+        self.initial_dose_krad: float = 0.0
+        self.experiment_start: Optional[datetime] = None
+    
+    def set_dose_rate(self, rate: float):
+        """Set dose rate in krad/hour."""
+        self.dose_rate_krad_per_hour = rate
+    
+    def set_initial_dose(self, dose: float):
+        """Set initial accumulated dose in krad."""
+        self.initial_dose_krad = dose
+    
+    def start(self):
+        """Start the radiation model timer."""
+        self.experiment_start = datetime.now()
+    
+    def get_current_dose(self) -> float:
+        """Calculate current accumulated dose."""
+        if self.experiment_start is None:
+            return self.initial_dose_krad
+        
+        hours = (datetime.now() - self.experiment_start).total_seconds() / 3600.0
+        return self.initial_dose_krad + (hours * self.dose_rate_krad_per_hour)
+    
+    def get_experiment_hours(self) -> float:
+        """Get experiment duration in hours."""
+        if self.experiment_start is None:
+            return 0.0
+        return (datetime.now() - self.experiment_start).total_seconds() / 3600.0
+
+
 class ExperimentController(QObject):
     """
     Main experiment controller with auto-program functionality.
@@ -116,6 +156,7 @@ class ExperimentController(QObject):
         request_reprogram(str): Request to reprogram FPGA with given bitstream path
         log_message(str): General log messages
         experiment_finished(): Emitted when queue exhausted
+        queue_updated(): Emitted when queue changes
     """
     
     state_changed = Signal(str)
@@ -123,11 +164,15 @@ class ExperimentController(QObject):
     request_reprogram = Signal(str)     # filepath
     log_message = Signal(str)
     experiment_finished = Signal()
+    queue_updated = Signal()
     
-    # Configuration
-    DEFAULT_STABILIZATION_TIME_MS = 3000   # Wait 3s after alarm before reprogram
-    DEFAULT_COOLDOWN_TIME_MS = 10000       # Wait 10s after reprogram before monitoring
-    DEFAULT_PHASE_STEP = 5.0               # Degrees between bitstreams
+    # Configuration defaults
+    DEFAULT_STABILIZATION_TIME_MS = 3000
+    DEFAULT_COOLDOWN_TIME_MS = 10000
+    DEFAULT_PHASE_STEP = 5.0
+    
+    # Regex to extract phase from filename (e.g., "m330" or "m175" or "p45")
+    PHASE_REGEX = re.compile(r'[_]([mp])(\d+)\.bit$', re.IGNORECASE)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -143,6 +188,20 @@ class ExperimentController(QObject):
         self._cooldown_time_ms = self.DEFAULT_COOLDOWN_TIME_MS
         self._phase_step = self.DEFAULT_PHASE_STEP
         self._auto_program_enabled = False
+        
+        # Sensor filtering - which sensors can trigger transitions
+        self._enabled_sensors: Dict[str, bool] = {
+            'F': True,
+            'RF': True,
+            'UART': True,
+            'OBI': True
+        }
+        
+        # Radiation model
+        self.radiation_model = RadiationModel()
+        
+        # Current bitstream tracking
+        self._current_programmed_bitstream: Optional[str] = None
         
         # Timing
         self._experiment_start: Optional[datetime] = None
@@ -189,7 +248,8 @@ class ExperimentController(QObject):
     @property
     def is_running(self) -> bool:
         return self._state in (ExperimentState.RUNNING, ExperimentState.ALARM_DETECTED,
-                               ExperimentState.REPROGRAMMING, ExperimentState.COOLDOWN)
+                               ExperimentState.REPROGRAMMING, ExperimentState.COOLDOWN,
+                               ExperimentState.PROGRAMMING_INITIAL)
     
     @property
     def auto_program_enabled(self) -> bool:
@@ -223,14 +283,19 @@ class ExperimentController(QObject):
     
     @property
     def experiment_hours(self) -> float:
-        if self._experiment_start:
-            delta = datetime.now() - self._experiment_start
-            return delta.total_seconds() / 3600.0
-        return 0.0
+        return self.radiation_model.get_experiment_hours()
+    
+    @property
+    def current_dose_krad(self) -> float:
+        return self.radiation_model.get_current_dose()
     
     @property
     def transitions(self) -> List[TransitionEvent]:
         return self._transitions.copy()
+    
+    @property
+    def enabled_sensors(self) -> Dict[str, bool]:
+        return self._enabled_sensors.copy()
     
     # =========================================================================
     # Configuration
@@ -248,6 +313,27 @@ class ExperimentController(QObject):
         """Set phase step between bitstreams."""
         self._phase_step = degrees
     
+    def set_sensor_enabled(self, sensor: str, enabled: bool):
+        """Enable or disable a sensor for triggering transitions."""
+        if sensor in self._enabled_sensors:
+            self._enabled_sensors[sensor] = enabled
+            status = "enabled" if enabled else "disabled"
+            self.log_message.emit(f"Sensor {sensor} {status} for transitions")
+    
+    def set_dose_rate(self, rate: float):
+        """Set radiation dose rate in krad/hour."""
+        self.radiation_model.set_dose_rate(rate)
+        self.log_message.emit(f"Dose rate set to {rate:.3f} krad/h")
+    
+    def set_initial_dose(self, dose: float):
+        """Set initial radiation dose in krad."""
+        self.radiation_model.set_initial_dose(dose)
+        self.log_message.emit(f"Initial dose set to {dose:.2f} krad")
+    
+    def set_current_programmed_bitstream(self, name: str):
+        """Set the currently programmed bitstream name."""
+        self._current_programmed_bitstream = name
+    
     # =========================================================================
     # Queue Management
     # =========================================================================
@@ -256,11 +342,51 @@ class ExperimentController(QObject):
         """Clear the bitstream queue."""
         self._queue.clear()
         self._current_index = 0
+        self.queue_updated.emit()
         self.log_message.emit("Bitstream queue cleared")
     
-    def add_bitstream(self, filepath: str, phase_degrees: float, order: int = -1):
+    def _extract_phase_from_filename(self, filename: str) -> tuple:
+        """
+        Extract phase information from filename.
+        
+        Examples:
+            croc_aging_clkout3phase_m330.bit → (-330, 330)
+            croc_aging_clkout3phase_m175.bit → (-175, 175)
+            croc_aging_clkout3phase_p45.bit → (45, 45)
+        
+        Returns:
+            tuple: (phase_degrees, phase_absolute)
+        """
+        match = self.PHASE_REGEX.search(filename)
+        if match:
+            sign = match.group(1).lower()
+            value = int(match.group(2))
+            
+            if sign == 'm':  # minus/negative
+                return (-value, value)
+            else:  # 'p' = positive
+                return (value, value)
+        
+        # Fallback: try to find any number at the end
+        numbers = re.findall(r'(\d+)', filename)
+        if numbers:
+            value = int(numbers[-1])
+            # Assume negative if the value is large (> 180)
+            if value > 180:
+                return (-value, value)
+            return (value, value)
+        
+        return (0, 0)
+    
+    def add_bitstream(self, filepath: str, phase_degrees: float = None, order: int = -1):
         """Add a bitstream to the queue."""
         name = os.path.basename(filepath)
+        
+        # Extract phase from filename if not provided
+        if phase_degrees is None:
+            phase_degrees, phase_absolute = self._extract_phase_from_filename(name)
+        else:
+            phase_absolute = abs(int(phase_degrees))
         
         if order < 0:
             order = len(self._queue)
@@ -269,48 +395,70 @@ class ExperimentController(QObject):
             filepath=filepath,
             name=name,
             phase_degrees=phase_degrees,
+            phase_absolute=phase_absolute,
             order=order
         )
         
         self._queue.append(entry)
-        self._sort_queue()
-        self.log_message.emit(f"Added bitstream: {name} ({phase_degrees:.1f}°)")
+        self.queue_updated.emit()
+        self.log_message.emit(f"Added bitstream: {name} ({phase_degrees}°)")
     
-    def load_from_directory(self, directory: str, start_phase: float = 0.0, 
-                            phase_step: float = None) -> int:
+    def load_from_directory(self, directory: str) -> int:
         """
-        Load bitstreams from directory, auto-assigning phases.
+        Load bitstreams from directory, auto-detecting phases from filenames.
         
-        Assumes files are named in order (alphabetically).
-        First bitstream gets start_phase, each subsequent gets +phase_step.
+        Bitstreams are sorted by absolute phase value in DESCENDING order
+        (330, 325, 320, 315...) because phases are negative and we start
+        with the most negative (least slack) and progress to less negative
+        (more slack).
         
         Returns:
             Number of bitstreams loaded
         """
-        if phase_step is None:
-            phase_step = self._phase_step
-        
         if not os.path.isdir(directory):
             return 0
         
         self.clear_queue()
         
-        bitstreams = sorted([
+        # Find all .bit files
+        bitstreams = [
             f for f in os.listdir(directory)
             if f.lower().endswith('.bit')
-        ])
+        ]
         
-        for i, name in enumerate(bitstreams):
+        # Extract phase info and sort by absolute value (descending)
+        bitstream_info = []
+        for name in bitstreams:
             filepath = os.path.join(directory, name)
-            phase = start_phase + (i * phase_step)
-            self.add_bitstream(filepath, phase, i)
+            phase_degrees, phase_absolute = self._extract_phase_from_filename(name)
+            bitstream_info.append((filepath, name, phase_degrees, phase_absolute))
         
-        self.log_message.emit(f"Loaded {len(bitstreams)} bitstreams from {directory}")
-        return len(bitstreams)
-    
-    def _sort_queue(self):
-        """Sort queue by order (ascending)."""
-        self._queue.sort(key=lambda x: x.order)
+        # Sort by absolute phase value, DESCENDING (330, 325, 320...)
+        bitstream_info.sort(key=lambda x: x[3], reverse=True)
+        
+        # Add to queue
+        for i, (filepath, name, phase_degrees, phase_absolute) in enumerate(bitstream_info):
+            entry = BitstreamEntry(
+                filepath=filepath,
+                name=name,
+                phase_degrees=phase_degrees,
+                phase_absolute=phase_absolute,
+                order=i
+            )
+            self._queue.append(entry)
+        
+        self.queue_updated.emit()
+        
+        if self._queue:
+            first = self._queue[0]
+            last = self._queue[-1]
+            self.log_message.emit(
+                f"Loaded {len(bitstream_info)} bitstreams from {directory}\n"
+                f"  First: {first.name} ({first.phase_degrees}°)\n"
+                f"  Last:  {last.name} ({last.phase_degrees}°)"
+            )
+        
+        return len(bitstream_info)
     
     def get_queue_info(self) -> List[Dict]:
         """Get queue information for display."""
@@ -318,6 +466,7 @@ class ExperimentController(QObject):
             {
                 'name': e.name,
                 'phase': e.phase_degrees,
+                'phase_abs': e.phase_absolute,
                 'order': e.order,
                 'current': i == self._current_index,
                 'filepath': e.filepath
@@ -335,7 +484,7 @@ class ExperimentController(QObject):
             self.log_message.emit("Cannot start: no bitstreams in queue")
             return False
         
-        self._experiment_start = datetime.now()
+        # Reset state
         self._current_index = 0
         self._transitions.clear()
         
@@ -345,12 +494,27 @@ class ExperimentController(QObject):
         self._last_alarm_uart = 0
         self._last_alarm_obi = 0
         
-        self._set_state(ExperimentState.RUNNING)
-        self.log_message.emit(f"Experiment started with {len(self._queue)} bitstreams")
+        # Start radiation model
+        self.radiation_model.start()
+        self._experiment_start = datetime.now()
         
-        # Request initial programming
-        if self.current_bitstream:
-            self.request_reprogram.emit(self.current_bitstream.filepath)
+        # Check if first bitstream is already programmed
+        first_bitstream = self._queue[0]
+        
+        if self._current_programmed_bitstream == first_bitstream.name:
+            # Already programmed, go directly to running
+            self._set_state(ExperimentState.RUNNING)
+            self.log_message.emit(
+                f"Experiment started with {len(self._queue)} bitstreams\n"
+                f"First bitstream already programmed: {first_bitstream.name}"
+            )
+        else:
+            # Need to program first bitstream
+            self._set_state(ExperimentState.PROGRAMMING_INITIAL)
+            self.log_message.emit(
+                f"Experiment starting - programming first bitstream: {first_bitstream.name}"
+            )
+            self.request_reprogram.emit(first_bitstream.filepath)
         
         return True
     
@@ -401,41 +565,48 @@ class ExperimentController(QObject):
         """
         Process incoming alarm data.
         
-        Called periodically with current alarm register values.
-        Detects NEW alarms and triggers auto-reprogram if enabled.
+        Only processes alarms from enabled sensors.
         """
-        # Skip if not running or in special states
-        if self._state not in (ExperimentState.RUNNING,):
-            return
-        
-        if not self._auto_program_enabled:
-            # Just update tracking
+        # Skip if not in running state
+        if self._state != ExperimentState.RUNNING:
+            # Still update tracking
             self._last_alarm_f = alarm_f
             self._last_alarm_rf = alarm_rf
             self._last_alarm_uart = alarm_uart
             self._last_alarm_obi = alarm_obi
             return
         
-        # Detect NEW alarm bits
-        new_f = alarm_f & ~self._last_alarm_f
-        new_rf = alarm_rf & ~self._last_alarm_rf
-        new_uart = alarm_uart & ~self._last_alarm_uart
-        new_obi = alarm_obi & ~self._last_alarm_obi
+        if not self._auto_program_enabled:
+            self._last_alarm_f = alarm_f
+            self._last_alarm_rf = alarm_rf
+            self._last_alarm_uart = alarm_uart
+            self._last_alarm_obi = alarm_obi
+            return
+        
+        # Detect NEW alarm bits (only for enabled sensors)
+        new_f = (alarm_f & ~self._last_alarm_f) if self._enabled_sensors['F'] else 0
+        new_rf = (alarm_rf & ~self._last_alarm_rf) if self._enabled_sensors['RF'] else 0
+        new_uart = (alarm_uart & ~self._last_alarm_uart) if self._enabled_sensors['UART'] else 0
+        new_obi = (alarm_obi & ~self._last_alarm_obi) if self._enabled_sensors['OBI'] else 0
         
         has_new_alarms = (new_f | new_rf | new_uart | new_obi) != 0
         
         if has_new_alarms:
-            # Capture which alarms triggered
-            self._pending_trigger_alarms = {
-                'F': [i for i in range(32) if new_f & (1 << i)],
-                'RF': [i for i in range(32) if new_rf & (1 << i)],
-                'UART': [i for i in range(32) if new_uart & (1 << i)],
-                'OBI': [i for i in range(32) if new_obi & (1 << i)]
-            }
+            # Capture which alarms triggered (only enabled sensors)
+            self._pending_trigger_alarms = {}
             
-            self._pending_total_alarms = (
-                bin(alarm_f).count('1') + bin(alarm_rf).count('1') +
-                bin(alarm_uart).count('1') + bin(alarm_obi).count('1')
+            if self._enabled_sensors['F'] and new_f:
+                self._pending_trigger_alarms['F'] = [i for i in range(32) if new_f & (1 << i)]
+            if self._enabled_sensors['RF'] and new_rf:
+                self._pending_trigger_alarms['RF'] = [i for i in range(32) if new_rf & (1 << i)]
+            if self._enabled_sensors['UART'] and new_uart:
+                self._pending_trigger_alarms['UART'] = [i for i in range(32) if new_uart & (1 << i)]
+            if self._enabled_sensors['OBI'] and new_obi:
+                self._pending_trigger_alarms['OBI'] = [i for i in range(32) if new_obi & (1 << i)]
+            
+            # Count total from enabled sensors only
+            self._pending_total_alarms = sum(
+                len(bits) for bits in self._pending_trigger_alarms.values()
             )
             
             # Log the trigger
@@ -452,7 +623,7 @@ class ExperimentController(QObject):
             self._set_state(ExperimentState.ALARM_DETECTED)
             self._stabilization_timer.start(self._stabilization_time_ms)
         
-        # Update tracking
+        # Update tracking (always, for all sensors)
         self._last_alarm_f = alarm_f
         self._last_alarm_rf = alarm_rf
         self._last_alarm_uart = alarm_uart
@@ -495,6 +666,7 @@ class ExperimentController(QObject):
             trigger_alarms=self._pending_trigger_alarms.copy(),
             total_alarms=self._pending_total_alarms,
             experiment_hours=self.experiment_hours,
+            radiation_dose_krad=self.current_dose_krad,
             fpga_temp=self._fpga_temp,
             vccint=self._vccint
         )
@@ -512,8 +684,23 @@ class ExperimentController(QObject):
         # Request reprogram
         self.request_reprogram.emit(to_bs.filepath)
     
-    def on_reprogram_complete(self, success: bool):
+    def on_reprogram_complete(self, success: bool, bitstream_name: str = ""):
         """Called when FPGA reprogramming completes."""
+        
+        # Update current programmed bitstream
+        if success and bitstream_name:
+            self._current_programmed_bitstream = bitstream_name
+        
+        if self._state == ExperimentState.PROGRAMMING_INITIAL:
+            # Initial programming complete
+            if success:
+                self.log_message.emit("✓ Initial bitstream programmed, starting monitoring")
+                self._set_state(ExperimentState.RUNNING)
+            else:
+                self.log_message.emit("✗ Initial programming failed, experiment stopped")
+                self._set_state(ExperimentState.IDLE)
+            return
+        
         if self._state != ExperimentState.REPROGRAMMING:
             return
         
@@ -551,7 +738,10 @@ class ExperimentController(QObject):
         
         data = {
             'experiment_start': self._experiment_start.isoformat() if self._experiment_start else None,
+            'dose_rate_krad_h': self.radiation_model.dose_rate_krad_per_hour,
+            'initial_dose_krad': self.radiation_model.initial_dose_krad,
             'total_transitions': len(self._transitions),
+            'enabled_sensors': self._enabled_sensors,
             'queue': [e.to_dict() for e in self._queue],
             'transitions': [t.to_dict() for t in self._transitions]
         }
@@ -590,7 +780,7 @@ class ExperimentController(QObject):
             
             # Header
             writer.writerow([
-                'timestamp', 'experiment_hours', 
+                'timestamp', 'experiment_hours', 'radiation_dose_krad',
                 'from_bitstream', 'from_phase',
                 'to_bitstream', 'to_phase',
                 'total_alarms', 'trigger_f', 'trigger_rf', 'trigger_uart', 'trigger_obi',
@@ -601,7 +791,8 @@ class ExperimentController(QObject):
             for t in self._transitions:
                 writer.writerow([
                     t.timestamp.isoformat(),
-                    t.experiment_hours,
+                    f"{t.experiment_hours:.4f}",
+                    f"{t.radiation_dose_krad:.4f}",
                     t.from_bitstream, t.from_phase,
                     t.to_bitstream, t.to_phase,
                     t.total_alarms,

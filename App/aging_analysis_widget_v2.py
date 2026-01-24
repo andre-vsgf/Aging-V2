@@ -1,24 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Aging Analysis Widget V2 - Simplified Interface
+Aging Analysis Widget V2 - Updated Interface
 
-Complete rewrite with:
-- Integrated ExperimentController for auto-program
-- Simplified bitstream queue management
-- Clear experiment state visualization
-- Transition history display
-
-WORKFLOW:
-1. Load bitstreams from directory (auto-assigns phases)
-2. Configure timeout/cooldown settings
-3. Start experiment
-4. Monitor as alarms trigger → auto-reprogram → continue
+Features:
+- Bitstream queue with auto-detection of negative phases
+- Sensor enable/disable checkboxes (runtime editable)
+- Radiation dose configuration (dose rate + initial dose)
+- Auto-program with initial bitstream verification
+- Transition history with detailed logging
 
 Author: CROC Project
 """
 
 import os
-import pyqtgraph as pg
 from datetime import datetime
 from pathlib import Path
 
@@ -26,10 +20,9 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QGroupBox, QLabel, QPushButton, QDoubleSpinBox,
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QSplitter, QTabWidget, QLineEdit, QSpinBox,
-    QFileDialog, QMessageBox, QFrame, QComboBox,
-    QTextEdit, QCheckBox, QListWidget, QListWidgetItem,
-    QProgressBar
+    QSplitter, QLineEdit, QSpinBox,
+    QFileDialog, QMessageBox, QFrame,
+    QCheckBox, QListWidget, QListWidgetItem
 )
 from PySide6.QtCore import Qt, Signal, Slot, QTimer
 from PySide6.QtGui import QColor, QFont, QBrush
@@ -51,6 +44,7 @@ class BitstreamQueueWidget(QGroupBox):
         
         # Connect signals
         self.controller.state_changed.connect(self._update_state)
+        self.controller.queue_updated.connect(self._refresh_list)
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -69,28 +63,10 @@ class BitstreamQueueWidget(QGroupBox):
         
         layout.addLayout(dir_layout)
         
-        # Phase configuration
-        phase_layout = QHBoxLayout()
-        
-        phase_layout.addWidget(QLabel("Start Phase:"))
-        self.spin_start_phase = QDoubleSpinBox()
-        self.spin_start_phase.setRange(-180, 360)
-        self.spin_start_phase.setValue(0)
-        self.spin_start_phase.setSuffix("°")
-        phase_layout.addWidget(self.spin_start_phase)
-        
-        phase_layout.addWidget(QLabel("Step:"))
-        self.spin_phase_step = QDoubleSpinBox()
-        self.spin_phase_step.setRange(0.1, 90)
-        self.spin_phase_step.setValue(5.0)
-        self.spin_phase_step.setSuffix("°")
-        phase_layout.addWidget(self.spin_phase_step)
-        
-        self.btn_load = QPushButton("Load Bitstreams")
+        # Load button
+        self.btn_load = QPushButton("🔄 Load Bitstreams (Auto-detect phases)")
         self.btn_load.clicked.connect(self._load_bitstreams)
-        phase_layout.addWidget(self.btn_load)
-        
-        layout.addLayout(phase_layout)
+        layout.addWidget(self.btn_load)
         
         # Queue list
         self.list_queue = QListWidget()
@@ -118,21 +94,21 @@ class BitstreamQueueWidget(QGroupBox):
             QMessageBox.warning(self, "Error", "Please select a valid directory")
             return
         
-        start_phase = self.spin_start_phase.value()
-        phase_step = self.spin_phase_step.value()
-        
-        count = self.controller.load_from_directory(
-            directory, start_phase, phase_step
-        )
-        
-        self._refresh_list()
+        count = self.controller.load_from_directory(directory)
         
         if count > 0:
+            queue = self.controller.get_queue_info()
+            first_phase = queue[0]['phase'] if queue else 0
+            last_phase = queue[-1]['phase'] if queue else 0
+            
             QMessageBox.information(
                 self, "Loaded",
-                f"Loaded {count} bitstreams\n"
-                f"Phase range: {start_phase}° to {start_phase + (count-1)*phase_step}°"
+                f"Loaded {count} bitstreams\n\n"
+                f"Phase range: {first_phase}° to {last_phase}°\n"
+                f"(Phases are negative, starting from most negative)"
             )
+        else:
+            QMessageBox.warning(self, "No Files", "No .bit files found in directory")
     
     def _refresh_list(self):
         """Refresh the queue list."""
@@ -142,7 +118,7 @@ class BitstreamQueueWidget(QGroupBox):
         
         for info in queue_info:
             item = QListWidgetItem(
-                f"{info['order']+1}. {info['name']} ({info['phase']:.1f}°)"
+                f"{info['order']+1}. {info['name']} ({info['phase']}°)"
             )
             
             if info['current']:
@@ -152,10 +128,9 @@ class BitstreamQueueWidget(QGroupBox):
             item.setData(Qt.UserRole, info['filepath'])
             self.list_queue.addItem(item)
         
-        self.lbl_queue_info.setText(
-            f"Queue: {len(queue_info)} bitstreams | "
-            f"Position: {self.controller.queue_position + 1}/{self.controller.queue_length}"
-        )
+        pos = self.controller.queue_position + 1
+        total = self.controller.queue_length
+        self.lbl_queue_info.setText(f"Queue: {total} bitstreams | Position: {pos}/{total}")
     
     def _on_item_clicked(self, item: QListWidgetItem):
         """Handle item click."""
@@ -167,6 +142,133 @@ class BitstreamQueueWidget(QGroupBox):
     def _update_state(self, state: str):
         """Update display based on controller state."""
         self._refresh_list()
+
+
+class SensorFilterWidget(QGroupBox):
+    """Widget for enabling/disabling sensor triggers."""
+    
+    def __init__(self, controller: ExperimentController, parent=None):
+        super().__init__("🎛️ Sensor Trigger Filters", parent)
+        self.controller = controller
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Info label
+        info_label = QLabel(
+            "Select which sensors can trigger bitstream transitions.\n"
+            "Disabled sensors will still be monitored but won't cause auto-reprogram."
+        )
+        info_label.setStyleSheet("color: #888; font-size: 9pt;")
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+        
+        # Checkboxes in a grid
+        grid = QGridLayout()
+        
+        self.chk_f = QCheckBox("F (AM Sensors)")
+        self.chk_f.setChecked(True)
+        self.chk_f.toggled.connect(lambda checked: self.controller.set_sensor_enabled('F', checked))
+        grid.addWidget(self.chk_f, 0, 0)
+        
+        self.chk_rf = QCheckBox("RF (LF Sensors)")
+        self.chk_rf.setChecked(True)
+        self.chk_rf.toggled.connect(lambda checked: self.controller.set_sensor_enabled('RF', checked))
+        grid.addWidget(self.chk_rf, 0, 1)
+        
+        self.chk_uart = QCheckBox("UART Sensors")
+        self.chk_uart.setChecked(True)
+        self.chk_uart.toggled.connect(lambda checked: self.controller.set_sensor_enabled('UART', checked))
+        grid.addWidget(self.chk_uart, 1, 0)
+        
+        self.chk_obi = QCheckBox("OBI (Demux Sensors)")
+        self.chk_obi.setChecked(True)
+        self.chk_obi.toggled.connect(lambda checked: self.controller.set_sensor_enabled('OBI', checked))
+        grid.addWidget(self.chk_obi, 1, 1)
+        
+        layout.addLayout(grid)
+        
+        # Quick buttons
+        btn_layout = QHBoxLayout()
+        
+        btn_all = QPushButton("Enable All")
+        btn_all.clicked.connect(self._enable_all)
+        btn_layout.addWidget(btn_all)
+        
+        btn_none = QPushButton("Disable All")
+        btn_none.clicked.connect(self._disable_all)
+        btn_layout.addWidget(btn_none)
+        
+        layout.addLayout(btn_layout)
+    
+    def _enable_all(self):
+        self.chk_f.setChecked(True)
+        self.chk_rf.setChecked(True)
+        self.chk_uart.setChecked(True)
+        self.chk_obi.setChecked(True)
+    
+    def _disable_all(self):
+        self.chk_f.setChecked(False)
+        self.chk_rf.setChecked(False)
+        self.chk_uart.setChecked(False)
+        self.chk_obi.setChecked(False)
+    
+    def get_enabled_sensors(self) -> dict:
+        return {
+            'F': self.chk_f.isChecked(),
+            'RF': self.chk_rf.isChecked(),
+            'UART': self.chk_uart.isChecked(),
+            'OBI': self.chk_obi.isChecked()
+        }
+
+
+class RadiationConfigWidget(QGroupBox):
+    """Widget for radiation dose configuration."""
+    
+    def __init__(self, controller: ExperimentController, parent=None):
+        super().__init__("☢️ Radiation Configuration", parent)
+        self.controller = controller
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        layout = QGridLayout(self)
+        
+        # Dose rate
+        layout.addWidget(QLabel("Dose Rate:"), 0, 0)
+        self.spin_dose_rate = QDoubleSpinBox()
+        self.spin_dose_rate.setRange(0.0, 1000.0)
+        self.spin_dose_rate.setDecimals(3)
+        self.spin_dose_rate.setValue(0.0)
+        self.spin_dose_rate.setSuffix(" krad/h")
+        self.spin_dose_rate.setToolTip("Radiation dose rate in krad per hour")
+        self.spin_dose_rate.valueChanged.connect(
+            lambda v: self.controller.set_dose_rate(v)
+        )
+        layout.addWidget(self.spin_dose_rate, 0, 1)
+        
+        # Initial dose
+        layout.addWidget(QLabel("Initial Dose:"), 1, 0)
+        self.spin_initial_dose = QDoubleSpinBox()
+        self.spin_initial_dose.setRange(0.0, 100000.0)
+        self.spin_initial_dose.setDecimals(2)
+        self.spin_initial_dose.setValue(0.0)
+        self.spin_initial_dose.setSuffix(" krad")
+        self.spin_initial_dose.setToolTip("Initial accumulated dose before experiment start")
+        self.spin_initial_dose.valueChanged.connect(
+            lambda v: self.controller.set_initial_dose(v)
+        )
+        layout.addWidget(self.spin_initial_dose, 1, 1)
+        
+        # Current dose display
+        layout.addWidget(QLabel("Current Dose:"), 2, 0)
+        self.lbl_current_dose = QLabel("0.00 krad")
+        self.lbl_current_dose.setStyleSheet("font-weight: bold; color: #ffc107;")
+        layout.addWidget(self.lbl_current_dose, 2, 1)
+    
+    def update_current_dose(self, dose: float):
+        """Update current dose display."""
+        self.lbl_current_dose.setText(f"{dose:.2f} krad")
 
 
 class ExperimentControlWidget(QGroupBox):
@@ -194,7 +296,7 @@ class ExperimentControlWidget(QGroupBox):
         
         timing_layout.addWidget(QLabel("Stabilization Time:"), 0, 0)
         self.spin_stabilization = QSpinBox()
-        self.spin_stabilization.setRange(1000, 30000)
+        self.spin_stabilization.setRange(1000, 60000)
         self.spin_stabilization.setValue(3000)
         self.spin_stabilization.setSuffix(" ms")
         self.spin_stabilization.setToolTip("Wait time after alarm before reprogramming")
@@ -205,7 +307,7 @@ class ExperimentControlWidget(QGroupBox):
         
         timing_layout.addWidget(QLabel("Cooldown Time:"), 1, 0)
         self.spin_cooldown = QSpinBox()
-        self.spin_cooldown.setRange(1000, 60000)
+        self.spin_cooldown.setRange(1000, 120000)
         self.spin_cooldown.setValue(10000)
         self.spin_cooldown.setSuffix(" ms")
         self.spin_cooldown.setToolTip("Wait time after reprogram before monitoring")
@@ -297,6 +399,7 @@ class ExperimentControlWidget(QGroupBox):
         """Update UI based on state."""
         state_colors = {
             'IDLE': ('#888', 'background-color: #2d2d30;'),
+            'PROGRAMMING_INITIAL': ('#17a2b8', 'background-color: #1a2d3d;'),
             'RUNNING': ('#28a745', 'background-color: #1a3d1a;'),
             'ALARM_DETECTED': ('#ffc107', 'background-color: #3d3d1a;'),
             'REPROGRAMMING': ('#17a2b8', 'background-color: #1a2d3d;'),
@@ -316,12 +419,12 @@ class ExperimentControlWidget(QGroupBox):
         next_bs = self.controller.next_bitstream
         
         if current:
-            self.lbl_current.setText(f"Current: {current.name} ({current.phase_degrees:.1f}°)")
+            self.lbl_current.setText(f"Current: {current.name} ({current.phase_degrees}°)")
         else:
             self.lbl_current.setText("Current: ---")
         
         if next_bs:
-            self.lbl_next.setText(f"Next: {next_bs.name} ({next_bs.phase_degrees:.1f}°)")
+            self.lbl_next.setText(f"Next: {next_bs.name} ({next_bs.phase_degrees}°)")
         else:
             self.lbl_next.setText("Next: (end of queue)")
         
@@ -329,7 +432,7 @@ class ExperimentControlWidget(QGroupBox):
         is_running = state not in ('IDLE', 'FINISHED')
         self.btn_start.setEnabled(not is_running)
         self.btn_stop.setEnabled(is_running)
-        self.btn_skip.setEnabled(is_running)
+        self.btn_skip.setEnabled(is_running and state == 'RUNNING')
     
     def update_time(self):
         """Update experiment time display."""
@@ -360,9 +463,9 @@ class TransitionHistoryWidget(QGroupBox):
         
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
+        self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels([
-            "Time", "Hours", "From → To", "Phase", "Triggers", "Alarms"
+            "Time", "Hours", "Dose (krad)", "From → To", "Phase", "Triggers", "Alarms"
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -395,14 +498,19 @@ class TransitionHistoryWidget(QGroupBox):
             f"{event.experiment_hours:.2f}"
         ))
         
-        # From → To
+        # Dose
         self.table.setItem(row, 2, QTableWidgetItem(
+            f"{event.radiation_dose_krad:.2f}"
+        ))
+        
+        # From → To
+        self.table.setItem(row, 3, QTableWidgetItem(
             f"{event.from_bitstream} → {event.to_bitstream}"
         ))
         
         # Phase
-        self.table.setItem(row, 3, QTableWidgetItem(
-            f"{event.from_phase:.1f}° → {event.to_phase:.1f}°"
+        self.table.setItem(row, 4, QTableWidgetItem(
+            f"{event.from_phase}° → {event.to_phase}°"
         ))
         
         # Triggers (which sensors)
@@ -410,10 +518,10 @@ class TransitionHistoryWidget(QGroupBox):
         for sensor, bits in event.trigger_alarms.items():
             if bits:
                 triggers.append(f"{sensor}:{len(bits)}")
-        self.table.setItem(row, 4, QTableWidgetItem(", ".join(triggers)))
+        self.table.setItem(row, 5, QTableWidgetItem(", ".join(triggers)))
         
         # Total alarms
-        self.table.setItem(row, 5, QTableWidgetItem(str(event.total_alarms)))
+        self.table.setItem(row, 6, QTableWidgetItem(str(event.total_alarms)))
         
         # Scroll to new row
         self.table.scrollToBottom()
@@ -437,10 +545,11 @@ class AgingAnalysisWidgetV2(QWidget):
     """
     Main aging analysis widget - Version 2.
     
-    Simplified interface focused on:
-    - Easy bitstream queue setup
-    - Clear experiment control
-    - Transition monitoring
+    Features:
+    - Bitstream queue with negative phase support
+    - Sensor enable/disable checkboxes
+    - Radiation dose configuration
+    - Auto-program with initial bitstream verification
     
     Signals:
         request_reprogram(str): Request to reprogram FPGA with filepath
@@ -476,7 +585,7 @@ class AgingAnalysisWidgetV2(QWidget):
     def _setup_ui(self):
         layout = QHBoxLayout(self)
         
-        # Left panel: Queue and Control
+        # Left panel: Queue, Filters, Radiation, Control
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -484,6 +593,14 @@ class AgingAnalysisWidgetV2(QWidget):
         # Queue widget
         self.queue_widget = BitstreamQueueWidget(self.controller)
         left_layout.addWidget(self.queue_widget)
+        
+        # Sensor filter widget
+        self.sensor_filter = SensorFilterWidget(self.controller)
+        left_layout.addWidget(self.sensor_filter)
+        
+        # Radiation config widget
+        self.radiation_config = RadiationConfigWidget(self.controller)
+        left_layout.addWidget(self.radiation_config)
         
         # Control widget
         self.control_widget = ExperimentControlWidget(self.controller)
@@ -502,7 +619,7 @@ class AgingAnalysisWidgetV2(QWidget):
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
-        splitter.setSizes([400, 600])
+        splitter.setSizes([450, 550])
         
         layout.addWidget(splitter)
     
@@ -517,6 +634,7 @@ class AgingAnalysisWidgetV2(QWidget):
     def _periodic_update(self):
         """Periodic UI updates."""
         self.control_widget.update_time()
+        self.radiation_config.update_current_dose(self.controller.current_dose_krad)
     
     @Slot()
     def _on_experiment_finished(self):
@@ -525,7 +643,8 @@ class AgingAnalysisWidgetV2(QWidget):
             self, "Experiment Finished",
             f"Experiment completed!\n"
             f"Total transitions: {len(self.controller.transitions)}\n"
-            f"Duration: {self.controller.experiment_hours:.2f} hours"
+            f"Duration: {self.controller.experiment_hours:.2f} hours\n"
+            f"Final dose: {self.controller.current_dose_krad:.2f} krad"
         )
     
     # =========================================================================
@@ -557,9 +676,13 @@ class AgingAnalysisWidgetV2(QWidget):
         self.controller.update_environmental(fpga_temp, vccint)
         self.logger.set_environmental_data(fpga_temp=fpga_temp, vccint=vccint, **kwargs)
     
-    def on_reprogram_complete(self, success: bool):
+    def set_current_bitstream(self, name: str):
+        """Set the currently programmed bitstream."""
+        self.controller.set_current_programmed_bitstream(name)
+    
+    def on_reprogram_complete(self, success: bool, bitstream_name: str = ""):
         """Called when FPGA reprogramming completes."""
-        self.controller.on_reprogram_complete(success)
+        self.controller.on_reprogram_complete(success, bitstream_name)
     
     def check_alarms(self, alarm_f: int, alarm_rf: int,
                      alarm_uart: int = 0, alarm_obi_dmx: int = 0) -> bool:

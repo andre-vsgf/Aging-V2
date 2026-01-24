@@ -64,6 +64,9 @@ class MainWindow(QMainWindow):
         self._last_alarm_uart = 0
         self._last_alarm_obi_dmx = 0
         
+        # Track last programmed bitstream
+        self._last_programmed_bitstream = ""
+        
         # Experiment start time
         self._experiment_start_time = None
         
@@ -526,7 +529,7 @@ class MainWindow(QMainWindow):
         baud_layout = QHBoxLayout()
         self.cmb_baud = QComboBox()
         self.cmb_baud.addItems(["9600", "19200", "38400", "57600", "115200", "125000", "230400", "460800", "921600"])
-        self.cmb_baud.setCurrentText(str(config.SYSTEM_BAUD))
+        self.cmb_baud.setCurrentText(str(config.BAUD_RATE))
         baud_layout.addWidget(QLabel("Baud:"))
         baud_layout.addWidget(self.cmb_baud, 1)
         sg_layout.addLayout(baud_layout)
@@ -813,7 +816,9 @@ class MainWindow(QMainWindow):
         self.btn_program.setEnabled(True)
         self.btn_program.setText("▶ PROGRAM (SRAM)")
         
-        bitstream_name = self.bitstream_manager.current_name()
+        # Get bitstream name from the last programmed file
+        # This could be from manual programming or auto-reprogram
+        bitstream_name = getattr(self, '_last_programmed_bitstream', '') or self.bitstream_manager.current_name()
         
         if success:
             self.lbl_bitstream.setText(f"Bitstream: {bitstream_name}")
@@ -823,20 +828,26 @@ class MainWindow(QMainWindow):
                 "bitstream": bitstream_name
             })
             
-            # Notify aging widget
-            self.aging_widget.on_reprogram_complete(True)
+            # Notify aging widget with bitstream name
+            self.aging_widget.on_reprogram_complete(True, bitstream_name)
+            self.aging_widget.set_current_bitstream(bitstream_name)
         else:
             self.lbl_bitstream.setText("Bitstream: Programming failed")
-            self.aging_widget.on_reprogram_complete(False)
+            self.aging_widget.on_reprogram_complete(False, "")
     
     @Slot(str)
     def _on_auto_reprogram_filepath(self, filepath: str):
         """Handle auto-reprogram request from experiment controller (V2 - filepath)."""
-        self.log(f"[AUTO-REPROGRAM] Alarm triggered! Switching to: {os.path.basename(filepath)}")
+        bitstream_name = os.path.basename(filepath)
+        self.log(f"[AUTO-REPROGRAM] Alarm triggered! Switching to: {bitstream_name}")
+        
+        # Store the bitstream name for when programming completes
+        self._last_programmed_bitstream = bitstream_name
         
         # Log the transition event
         self.smart_logger.log_event("auto_reprogram", {
             "filepath": filepath,
+            "bitstream": bitstream_name,
             "reason": "alarm_triggered"
         })
         
@@ -931,6 +942,9 @@ class MainWindow(QMainWindow):
                     QMessageBox.warning(self, "Missing File", 
                         f"Flash programming requires a .bin file.\nCould not find: {bin_candidate}")
                     return
+        
+        # Store the bitstream name for when programming completes
+        self._last_programmed_bitstream = os.path.basename(current_file)
         
         self.fpga_manager.program(target_file, mode=mode)
 
