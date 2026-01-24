@@ -810,14 +810,16 @@ class MainWindow(QMainWindow):
             self.cmb_ports.setCurrentIndex(idx)
 
     def _browse_bitstream_dir(self):
-        """Browse for bitstream directory."""
-        path = QFileDialog.getExistingDirectory(
-            self, "Select Bitstream Directory",
-            self.txt_bitstream_dir.text()
-        )
-        if path:
-            self.txt_bitstream_dir.setText(path)
-            self._refresh_bitstreams()
+            """Browse for bitstream directory."""
+            path = QFileDialog.getExistingDirectory(
+                self, "Select Bitstream Directory",
+                self.txt_bitstream_dir.text()
+            )
+            if path:
+                self.txt_bitstream_dir.setText(path)
+                self._refresh_bitstreams()
+                # FIX: Automatically save settings to persist the new path immediately
+                self._save_settings()
 
     def _refresh_bitstreams(self):
         """Refresh bitstream list."""
