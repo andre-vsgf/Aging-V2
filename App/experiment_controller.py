@@ -565,7 +565,8 @@ class ExperimentController(QObject):
         """
         Process incoming alarm data.
         
-        Only processes alarms from enabled sensors.
+        Triggers on ANY active alarm from enabled sensors (not just new bits).
+        After cooldown, if any alarm is still active, triggers transition.
         """
         # Skip if not in running state
         if self._state != ExperimentState.RUNNING:
@@ -583,26 +584,26 @@ class ExperimentController(QObject):
             self._last_alarm_obi = alarm_obi
             return
         
-        # Detect NEW alarm bits (only for enabled sensors)
-        new_f = (alarm_f & ~self._last_alarm_f) if self._enabled_sensors['F'] else 0
-        new_rf = (alarm_rf & ~self._last_alarm_rf) if self._enabled_sensors['RF'] else 0
-        new_uart = (alarm_uart & ~self._last_alarm_uart) if self._enabled_sensors['UART'] else 0
-        new_obi = (alarm_obi & ~self._last_alarm_obi) if self._enabled_sensors['OBI'] else 0
+        # Check for ANY active alarms from enabled sensors
+        active_f = alarm_f if self._enabled_sensors['F'] else 0
+        active_rf = alarm_rf if self._enabled_sensors['RF'] else 0
+        active_uart = alarm_uart if self._enabled_sensors['UART'] else 0
+        active_obi = alarm_obi if self._enabled_sensors['OBI'] else 0
         
-        has_new_alarms = (new_f | new_rf | new_uart | new_obi) != 0
+        has_active_alarms = (active_f | active_rf | active_uart | active_obi) != 0
         
-        if has_new_alarms:
-            # Capture which alarms triggered (only enabled sensors)
+        if has_active_alarms:
+            # Capture which alarms are active (only enabled sensors)
             self._pending_trigger_alarms = {}
             
-            if self._enabled_sensors['F'] and new_f:
-                self._pending_trigger_alarms['F'] = [i for i in range(32) if new_f & (1 << i)]
-            if self._enabled_sensors['RF'] and new_rf:
-                self._pending_trigger_alarms['RF'] = [i for i in range(32) if new_rf & (1 << i)]
-            if self._enabled_sensors['UART'] and new_uart:
-                self._pending_trigger_alarms['UART'] = [i for i in range(32) if new_uart & (1 << i)]
-            if self._enabled_sensors['OBI'] and new_obi:
-                self._pending_trigger_alarms['OBI'] = [i for i in range(32) if new_obi & (1 << i)]
+            if self._enabled_sensors['F'] and active_f:
+                self._pending_trigger_alarms['F'] = [i for i in range(32) if active_f & (1 << i)]
+            if self._enabled_sensors['RF'] and active_rf:
+                self._pending_trigger_alarms['RF'] = [i for i in range(32) if active_rf & (1 << i)]
+            if self._enabled_sensors['UART'] and active_uart:
+                self._pending_trigger_alarms['UART'] = [i for i in range(32) if active_uart & (1 << i)]
+            if self._enabled_sensors['OBI'] and active_obi:
+                self._pending_trigger_alarms['OBI'] = [i for i in range(32) if active_obi & (1 << i)]
             
             # Count total from enabled sensors only
             self._pending_total_alarms = sum(
@@ -616,7 +617,7 @@ class ExperimentController(QObject):
                     trigger_summary.append(f"{sensor}:{bits}")
             
             self.log_message.emit(
-                f"⚠️ NEW ALARMS DETECTED: {', '.join(trigger_summary)}"
+                f"⚠️ ACTIVE ALARMS DETECTED: {', '.join(trigger_summary)}"
             )
             
             # Start stabilization timer

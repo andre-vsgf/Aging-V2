@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Aging Analysis Widget V2 - Updated Interface
+Aging Analysis Widget V2 - Updated Interface with Graphs
 
 Features:
 - Bitstream queue with auto-detection of negative phases
@@ -8,13 +8,17 @@ Features:
 - Radiation dose configuration (dose rate + initial dose)
 - Auto-program with initial bitstream verification
 - Transition history with detailed logging
+- Slack degradation graphs with projections
 
 Author: CROC Project
 """
 
 import os
+import numpy as np
 from datetime import datetime
 from pathlib import Path
+
+import pyqtgraph as pg
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -22,7 +26,8 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView,
     QSplitter, QLineEdit, QSpinBox,
     QFileDialog, QMessageBox, QFrame,
-    QCheckBox, QListWidget, QListWidgetItem
+    QCheckBox, QListWidget, QListWidgetItem,
+    QTabWidget
 )
 from PySide6.QtCore import Qt, Signal, Slot, QTimer
 from PySide6.QtGui import QColor, QFont, QBrush
@@ -71,6 +76,7 @@ class BitstreamQueueWidget(QGroupBox):
         # Queue list
         self.list_queue = QListWidget()
         self.list_queue.setAlternatingRowColors(True)
+        self.list_queue.setMaximumHeight(120)
         self.list_queue.itemClicked.connect(self._on_item_clicked)
         layout.addWidget(self.list_queue)
         
@@ -157,8 +163,8 @@ class SensorFilterWidget(QGroupBox):
         
         # Info label
         info_label = QLabel(
-            "Select which sensors can trigger bitstream transitions.\n"
-            "Disabled sensors will still be monitored but won't cause auto-reprogram."
+            "Select which sensors can trigger transitions.\n"
+            "Disabled sensors are monitored but won't cause auto-reprogram."
         )
         info_label.setStyleSheet("color: #888; font-size: 9pt;")
         info_label.setWordWrap(True)
@@ -167,22 +173,22 @@ class SensorFilterWidget(QGroupBox):
         # Checkboxes in a grid
         grid = QGridLayout()
         
-        self.chk_f = QCheckBox("F (AM Sensors)")
+        self.chk_f = QCheckBox("F (AM)")
         self.chk_f.setChecked(True)
         self.chk_f.toggled.connect(lambda checked: self.controller.set_sensor_enabled('F', checked))
         grid.addWidget(self.chk_f, 0, 0)
         
-        self.chk_rf = QCheckBox("RF (LF Sensors)")
+        self.chk_rf = QCheckBox("RF (LF)")
         self.chk_rf.setChecked(True)
         self.chk_rf.toggled.connect(lambda checked: self.controller.set_sensor_enabled('RF', checked))
         grid.addWidget(self.chk_rf, 0, 1)
         
-        self.chk_uart = QCheckBox("UART Sensors")
+        self.chk_uart = QCheckBox("UART")
         self.chk_uart.setChecked(True)
         self.chk_uart.toggled.connect(lambda checked: self.controller.set_sensor_enabled('UART', checked))
         grid.addWidget(self.chk_uart, 1, 0)
         
-        self.chk_obi = QCheckBox("OBI (Demux Sensors)")
+        self.chk_obi = QCheckBox("OBI")
         self.chk_obi.setChecked(True)
         self.chk_obi.toggled.connect(lambda checked: self.controller.set_sensor_enabled('OBI', checked))
         grid.addWidget(self.chk_obi, 1, 1)
@@ -213,14 +219,6 @@ class SensorFilterWidget(QGroupBox):
         self.chk_rf.setChecked(False)
         self.chk_uart.setChecked(False)
         self.chk_obi.setChecked(False)
-    
-    def get_enabled_sensors(self) -> dict:
-        return {
-            'F': self.chk_f.isChecked(),
-            'RF': self.chk_rf.isChecked(),
-            'UART': self.chk_uart.isChecked(),
-            'OBI': self.chk_obi.isChecked()
-        }
 
 
 class RadiationConfigWidget(QGroupBox):
@@ -241,7 +239,6 @@ class RadiationConfigWidget(QGroupBox):
         self.spin_dose_rate.setDecimals(3)
         self.spin_dose_rate.setValue(0.0)
         self.spin_dose_rate.setSuffix(" krad/h")
-        self.spin_dose_rate.setToolTip("Radiation dose rate in krad per hour")
         self.spin_dose_rate.valueChanged.connect(
             lambda v: self.controller.set_dose_rate(v)
         )
@@ -254,7 +251,6 @@ class RadiationConfigWidget(QGroupBox):
         self.spin_initial_dose.setDecimals(2)
         self.spin_initial_dose.setValue(0.0)
         self.spin_initial_dose.setSuffix(" krad")
-        self.spin_initial_dose.setToolTip("Initial accumulated dose before experiment start")
         self.spin_initial_dose.valueChanged.connect(
             lambda v: self.controller.set_initial_dose(v)
         )
@@ -287,30 +283,28 @@ class ExperimentControlWidget(QGroupBox):
         
         # Auto-program toggle
         self.chk_auto_program = QCheckBox("🔄 Enable Auto-Program on Alarm")
-        self.chk_auto_program.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        self.chk_auto_program.setStyleSheet("font-weight: bold;")
         self.chk_auto_program.toggled.connect(self._on_auto_program_toggled)
         layout.addWidget(self.chk_auto_program)
         
         # Timing configuration
         timing_layout = QGridLayout()
         
-        timing_layout.addWidget(QLabel("Stabilization Time:"), 0, 0)
+        timing_layout.addWidget(QLabel("Stabilization:"), 0, 0)
         self.spin_stabilization = QSpinBox()
         self.spin_stabilization.setRange(1000, 60000)
         self.spin_stabilization.setValue(3000)
         self.spin_stabilization.setSuffix(" ms")
-        self.spin_stabilization.setToolTip("Wait time after alarm before reprogramming")
         self.spin_stabilization.valueChanged.connect(
             lambda v: self.controller.set_stabilization_time(v)
         )
         timing_layout.addWidget(self.spin_stabilization, 0, 1)
         
-        timing_layout.addWidget(QLabel("Cooldown Time:"), 1, 0)
+        timing_layout.addWidget(QLabel("Cooldown:"), 1, 0)
         self.spin_cooldown = QSpinBox()
         self.spin_cooldown.setRange(1000, 120000)
         self.spin_cooldown.setValue(10000)
         self.spin_cooldown.setSuffix(" ms")
-        self.spin_cooldown.setToolTip("Wait time after reprogram before monitoring")
         self.spin_cooldown.valueChanged.connect(
             lambda v: self.controller.set_cooldown_time(v)
         )
@@ -322,11 +316,10 @@ class ExperimentControlWidget(QGroupBox):
         state_frame = QFrame()
         state_frame.setFrameStyle(QFrame.StyledPanel)
         state_layout = QVBoxLayout(state_frame)
+        state_layout.setContentsMargins(5, 5, 5, 5)
         
         self.lbl_state = QLabel("State: IDLE")
-        self.lbl_state.setStyleSheet(
-            "font-size: 14pt; font-weight: bold; padding: 10px;"
-        )
+        self.lbl_state.setStyleSheet("font-size: 12pt; font-weight: bold;")
         self.lbl_state.setAlignment(Qt.AlignCenter)
         state_layout.addWidget(self.lbl_state)
         
@@ -346,21 +339,20 @@ class ExperimentControlWidget(QGroupBox):
         
         self.btn_start = QPushButton("▶ Start")
         self.btn_start.setStyleSheet(
-            "background-color: #28a745; color: white; font-weight: bold; padding: 10px;"
+            "background-color: #28a745; color: white; font-weight: bold; padding: 8px;"
         )
         self.btn_start.clicked.connect(self._start_experiment)
         btn_layout.addWidget(self.btn_start)
         
         self.btn_stop = QPushButton("⏹ Stop")
         self.btn_stop.setStyleSheet(
-            "background-color: #dc3545; color: white; font-weight: bold; padding: 10px;"
+            "background-color: #dc3545; color: white; font-weight: bold; padding: 8px;"
         )
         self.btn_stop.clicked.connect(self._stop_experiment)
         self.btn_stop.setEnabled(False)
         btn_layout.addWidget(self.btn_stop)
         
         self.btn_skip = QPushButton("⏭ Skip")
-        self.btn_skip.setToolTip("Manually skip to next bitstream")
         self.btn_skip.clicked.connect(self._skip_bitstream)
         self.btn_skip.setEnabled(False)
         btn_layout.addWidget(self.btn_skip)
@@ -368,7 +360,7 @@ class ExperimentControlWidget(QGroupBox):
         layout.addLayout(btn_layout)
         
         # Experiment time
-        self.lbl_time = QLabel("Experiment Time: 00:00:00")
+        self.lbl_time = QLabel("Time: 00:00:00")
         self.lbl_time.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.lbl_time)
     
@@ -379,7 +371,6 @@ class ExperimentControlWidget(QGroupBox):
         if self.controller.queue_length == 0:
             QMessageBox.warning(self, "Error", "Please load bitstreams first")
             return
-        
         self.controller.start_experiment()
     
     def _stop_experiment(self):
@@ -411,7 +402,7 @@ class ExperimentControlWidget(QGroupBox):
         color, bg = state_colors.get(state, ('#888', 'background-color: #2d2d30;'))
         self.lbl_state.setText(f"State: {state}")
         self.lbl_state.setStyleSheet(
-            f"font-size: 14pt; font-weight: bold; padding: 10px; color: {color}; {bg}"
+            f"font-size: 12pt; font-weight: bold; padding: 5px; color: {color}; {bg}"
         )
         
         # Update current/next labels
@@ -440,7 +431,7 @@ class ExperimentControlWidget(QGroupBox):
         h = int(hours)
         m = int((hours - h) * 60)
         s = int(((hours - h) * 60 - m) * 60)
-        self.lbl_time.setText(f"Experiment Time: {h:02d}:{m:02d}:{s:02d}")
+        self.lbl_time.setText(f"Time: {h:02d}:{m:02d}:{s:02d}")
 
 
 class TransitionHistoryWidget(QGroupBox):
@@ -465,20 +456,19 @@ class TransitionHistoryWidget(QGroupBox):
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels([
-            "Time", "Hours", "Dose (krad)", "From → To", "Phase", "Triggers", "Alarms"
+            "Time", "Hours", "Dose", "From → To", "Phase", "Triggers", "Alarms"
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setAlternatingRowColors(True)
+        self.table.setMaximumHeight(150)
         layout.addWidget(self.table)
         
         # Export button
         btn_layout = QHBoxLayout()
-        
         btn_export = QPushButton("📁 Export CSV")
         btn_export.clicked.connect(self._export_csv)
         btn_layout.addWidget(btn_export)
-        
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
     
@@ -488,45 +478,20 @@ class TransitionHistoryWidget(QGroupBox):
         row = self.table.rowCount()
         self.table.insertRow(row)
         
-        # Time
-        self.table.setItem(row, 0, QTableWidgetItem(
-            event.timestamp.strftime("%H:%M:%S")
-        ))
+        self.table.setItem(row, 0, QTableWidgetItem(event.timestamp.strftime("%H:%M:%S")))
+        self.table.setItem(row, 1, QTableWidgetItem(f"{event.experiment_hours:.2f}"))
+        self.table.setItem(row, 2, QTableWidgetItem(f"{event.radiation_dose_krad:.2f}"))
+        self.table.setItem(row, 3, QTableWidgetItem(f"{event.from_bitstream} → {event.to_bitstream}"))
+        self.table.setItem(row, 4, QTableWidgetItem(f"{event.from_phase}° → {event.to_phase}°"))
         
-        # Hours
-        self.table.setItem(row, 1, QTableWidgetItem(
-            f"{event.experiment_hours:.2f}"
-        ))
-        
-        # Dose
-        self.table.setItem(row, 2, QTableWidgetItem(
-            f"{event.radiation_dose_krad:.2f}"
-        ))
-        
-        # From → To
-        self.table.setItem(row, 3, QTableWidgetItem(
-            f"{event.from_bitstream} → {event.to_bitstream}"
-        ))
-        
-        # Phase
-        self.table.setItem(row, 4, QTableWidgetItem(
-            f"{event.from_phase}° → {event.to_phase}°"
-        ))
-        
-        # Triggers (which sensors)
         triggers = []
         for sensor, bits in event.trigger_alarms.items():
             if bits:
                 triggers.append(f"{sensor}:{len(bits)}")
         self.table.setItem(row, 5, QTableWidgetItem(", ".join(triggers)))
-        
-        # Total alarms
         self.table.setItem(row, 6, QTableWidgetItem(str(event.total_alarms)))
         
-        # Scroll to new row
         self.table.scrollToBottom()
-        
-        # Update summary
         self.lbl_summary.setText(f"Transitions: {row + 1}")
     
     def _export_csv(self):
@@ -541,6 +506,234 @@ class TransitionHistoryWidget(QGroupBox):
             QMessageBox.information(self, "Exported", f"Transitions exported to {path}")
 
 
+class SlackDegradationGraphWidget(QWidget):
+    """
+    Widget with tabbed graphs for slack degradation analysis.
+    
+    Contains two graphs:
+    1. Slack vs Radiation Dose
+    2. Slack vs Time
+    
+    Both include real-time data points and linear regression projections.
+    """
+    
+    def __init__(self, controller: ExperimentController, parent=None):
+        super().__init__(parent)
+        self.controller = controller
+        
+        # Data storage
+        self._dose_data = []      # (dose_krad, slack_ns)
+        self._time_data = []      # (hours, slack_ns)
+        
+        # Projection settings
+        self._projection_points = 50  # Number of projection points
+        self._projection_factor = 1.5  # Project 50% beyond data range
+        
+        self._setup_ui()
+        
+        # Connect signals
+        self.controller.transition_logged.connect(self._on_transition)
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Tab widget for graphs
+        self.tab_widget = QTabWidget()
+        
+        # Graph 1: Slack vs Dose
+        self.dose_graph_widget = pg.PlotWidget()
+        self.dose_graph_widget.setBackground('#1e1e1e')
+        self.dose_graph_widget.setTitle("Slack Degradation vs Radiation Dose", color='w')
+        self.dose_graph_widget.setLabel('left', 'Slack (ns)', color='w')
+        self.dose_graph_widget.setLabel('bottom', 'Radiation Dose (krad)', color='w')
+        self.dose_graph_widget.showGrid(x=True, y=True, alpha=0.3)
+        self.dose_graph_widget.addLegend()
+        
+        # Data scatter plot
+        self.dose_scatter = pg.ScatterPlotItem(
+            pen=pg.mkPen(None),
+            brush=pg.mkBrush(66, 165, 245, 200),
+            size=10,
+            name='Measured'
+        )
+        self.dose_graph_widget.addItem(self.dose_scatter)
+        
+        # Regression line
+        self.dose_regression_line = pg.PlotDataItem(
+            pen=pg.mkPen(color=(255, 193, 7), width=2),
+            name='Linear Fit'
+        )
+        self.dose_graph_widget.addItem(self.dose_regression_line)
+        
+        # Projection line (dashed)
+        self.dose_projection_line = pg.PlotDataItem(
+            pen=pg.mkPen(color=(255, 87, 34), width=2, style=Qt.DashLine),
+            name='Projection'
+        )
+        self.dose_graph_widget.addItem(self.dose_projection_line)
+        
+        self.tab_widget.addTab(self.dose_graph_widget, "📊 Slack vs Dose")
+        
+        # Graph 2: Slack vs Time
+        self.time_graph_widget = pg.PlotWidget()
+        self.time_graph_widget.setBackground('#1e1e1e')
+        self.time_graph_widget.setTitle("Slack Degradation vs Time", color='w')
+        self.time_graph_widget.setLabel('left', 'Slack (ns)', color='w')
+        self.time_graph_widget.setLabel('bottom', 'Experiment Time (hours)', color='w')
+        self.time_graph_widget.showGrid(x=True, y=True, alpha=0.3)
+        self.time_graph_widget.addLegend()
+        
+        # Data scatter plot
+        self.time_scatter = pg.ScatterPlotItem(
+            pen=pg.mkPen(None),
+            brush=pg.mkBrush(76, 175, 80, 200),
+            size=10,
+            name='Measured'
+        )
+        self.time_graph_widget.addItem(self.time_scatter)
+        
+        # Regression line
+        self.time_regression_line = pg.PlotDataItem(
+            pen=pg.mkPen(color=(255, 193, 7), width=2),
+            name='Linear Fit'
+        )
+        self.time_graph_widget.addItem(self.time_regression_line)
+        
+        # Projection line (dashed)
+        self.time_projection_line = pg.PlotDataItem(
+            pen=pg.mkPen(color=(255, 87, 34), width=2, style=Qt.DashLine),
+            name='Projection'
+        )
+        self.time_graph_widget.addItem(self.time_projection_line)
+        
+        self.tab_widget.addTab(self.time_graph_widget, "⏱️ Slack vs Time")
+        
+        layout.addWidget(self.tab_widget)
+        
+        # Info label
+        self.lbl_regression_info = QLabel("Regression: No data yet")
+        self.lbl_regression_info.setStyleSheet("color: #888; font-size: 9pt;")
+        layout.addWidget(self.lbl_regression_info)
+    
+    def _phase_to_slack_ns(self, phase_degrees: float, clock_period_ns: float = 50.0) -> float:
+        """
+        Convert phase degrees to slack in nanoseconds.
+        
+        Phase is negative (e.g., -330°), slack is positive.
+        Slack = |phase| * (clock_period / 360)
+        """
+        return abs(phase_degrees) * (clock_period_ns / 360.0)
+    
+    @Slot(object)
+    def _on_transition(self, event: TransitionEvent):
+        """Handle new transition - add data point."""
+        # Calculate slack from the "to" phase (the new bitstream)
+        slack_ns = self._phase_to_slack_ns(event.to_phase)
+        
+        # Add to data
+        self._dose_data.append((event.radiation_dose_krad, slack_ns))
+        self._time_data.append((event.experiment_hours, slack_ns))
+        
+        # Update graphs
+        self._update_graphs()
+    
+    def _update_graphs(self):
+        """Update both graphs with current data."""
+        # Update Dose graph
+        if self._dose_data:
+            doses = [d[0] for d in self._dose_data]
+            slacks = [d[1] for d in self._dose_data]
+            
+            self.dose_scatter.setData(doses, slacks)
+            self._update_regression(doses, slacks, 
+                                   self.dose_regression_line, 
+                                   self.dose_projection_line,
+                                   'dose')
+        
+        # Update Time graph
+        if self._time_data:
+            times = [d[0] for d in self._time_data]
+            slacks = [d[1] for d in self._time_data]
+            
+            self.time_scatter.setData(times, slacks)
+            self._update_regression(times, slacks,
+                                   self.time_regression_line,
+                                   self.time_projection_line,
+                                   'time')
+    
+    def _update_regression(self, x_data, y_data, reg_line, proj_line, graph_type):
+        """Update regression and projection lines."""
+        if len(x_data) < 2:
+            reg_line.setData([], [])
+            proj_line.setData([], [])
+            return
+        
+        x = np.array(x_data)
+        y = np.array(y_data)
+        
+        try:
+            # Linear regression: y = mx + b
+            coeffs = np.polyfit(x, y, 1)
+            m, b = coeffs[0], coeffs[1]
+            
+            # Regression line (within data range)
+            x_fit = np.linspace(x.min(), x.max(), 100)
+            y_fit = m * x_fit + b
+            reg_line.setData(x_fit, y_fit)
+            
+            # Projection line (beyond data range)
+            x_max = x.max()
+            x_proj_end = x_max * self._projection_factor
+            
+            if x_proj_end > x_max:
+                x_proj = np.linspace(x_max, x_proj_end, self._projection_points)
+                y_proj = m * x_proj + b
+                proj_line.setData(x_proj, y_proj)
+            else:
+                proj_line.setData([], [])
+            
+            # Update info label
+            if graph_type == 'dose':
+                rate_str = f"Slack degradation rate: {m:.4f} ns/krad"
+            else:
+                rate_str = f"Slack degradation rate: {m:.4f} ns/hour"
+            
+            r_squared = self._calculate_r_squared(x, y, m, b)
+            self.lbl_regression_info.setText(f"{rate_str} | R² = {r_squared:.4f}")
+            
+        except Exception as e:
+            reg_line.setData([], [])
+            proj_line.setData([], [])
+            self.lbl_regression_info.setText(f"Regression error: {e}")
+    
+    def _calculate_r_squared(self, x, y, m, b):
+        """Calculate R-squared value for the linear fit."""
+        y_pred = m * x + b
+        ss_res = np.sum((y - y_pred) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
+        
+        if ss_tot == 0:
+            return 1.0
+        
+        return 1 - (ss_res / ss_tot)
+    
+    def clear_data(self):
+        """Clear all graph data."""
+        self._dose_data.clear()
+        self._time_data.clear()
+        
+        self.dose_scatter.setData([], [])
+        self.dose_regression_line.setData([], [])
+        self.dose_projection_line.setData([], [])
+        
+        self.time_scatter.setData([], [])
+        self.time_regression_line.setData([], [])
+        self.time_projection_line.setData([], [])
+        
+        self.lbl_regression_info.setText("Regression: No data yet")
+
+
 class AgingAnalysisWidgetV2(QWidget):
     """
     Main aging analysis widget - Version 2.
@@ -550,6 +743,7 @@ class AgingAnalysisWidgetV2(QWidget):
     - Sensor enable/disable checkboxes
     - Radiation dose configuration
     - Auto-program with initial bitstream verification
+    - Slack degradation graphs with projections
     
     Signals:
         request_reprogram(str): Request to reprogram FPGA with filepath
@@ -589,6 +783,7 @@ class AgingAnalysisWidgetV2(QWidget):
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(5)
         
         # Queue widget
         self.queue_widget = BitstreamQueueWidget(self.controller)
@@ -606,20 +801,25 @@ class AgingAnalysisWidgetV2(QWidget):
         self.control_widget = ExperimentControlWidget(self.controller)
         left_layout.addWidget(self.control_widget)
         
-        # Right panel: History
+        # Right panel: History + Graphs
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(5)
         
         # Transition history
         self.history_widget = TransitionHistoryWidget(self.controller)
         right_layout.addWidget(self.history_widget)
         
+        # Graphs widget (tabbed)
+        self.graphs_widget = SlackDegradationGraphWidget(self.controller)
+        right_layout.addWidget(self.graphs_widget, 1)  # Stretch factor
+        
         # Splitter
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
-        splitter.setSizes([450, 550])
+        splitter.setSizes([380, 620])
         
         layout.addWidget(splitter)
     
@@ -653,11 +853,7 @@ class AgingAnalysisWidgetV2(QWidget):
     
     def process_sensor_data(self, alarm_f: int, alarm_rf: int,
                             alarm_uart: int = 0, alarm_obi_dmx: int = 0):
-        """
-        Process incoming sensor data.
-        
-        Called by MainWindow when sensor data arrives.
-        """
+        """Process incoming sensor data."""
         # Forward to controller
         self.controller.process_alarms(alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx)
         
@@ -686,19 +882,12 @@ class AgingAnalysisWidgetV2(QWidget):
     
     def check_alarms(self, alarm_f: int, alarm_rf: int,
                      alarm_uart: int = 0, alarm_obi_dmx: int = 0) -> bool:
-        """
-        Check for new alarms (compatibility method).
-        
-        Returns True if new alarms detected.
-        """
+        """Check for new alarms (compatibility method)."""
         total = (bin(alarm_f).count('1') + bin(alarm_rf).count('1') +
                  bin(alarm_uart).count('1') + bin(alarm_obi_dmx).count('1'))
         
         new_alarms = total > self._last_total_alarms
-        
-        # Process through controller
         self.process_sensor_data(alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx)
-        
         return new_alarms
     
     def get_alarm_counts(self) -> dict:
