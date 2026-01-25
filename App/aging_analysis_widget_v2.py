@@ -50,6 +50,30 @@ class BitstreamQueueWidget(QGroupBox):
         # Connect signals
         self.controller.state_changed.connect(self._update_state)
         self.controller.queue_updated.connect(self._refresh_list)
+        
+        # Try to set default directory from config
+        self._set_default_directory()
+
+        # Auto-load bitstreams if directory is valid
+        if self.txt_directory.text() and os.path.isdir(self.txt_directory.text()):
+            self._load_bitstreams()
+    
+    def _set_default_directory(self):
+        """Set default directory from config or detect out_bitstreams."""
+        try:
+            import config
+            default_dir = getattr(config, 'BITSTREAM_DIR', '')
+            if default_dir and os.path.isdir(default_dir):
+                self.txt_directory.setText(default_dir)
+                return
+        except ImportError:
+            pass
+        
+        # Fallback: try to find out_bitstreams relative to current dir
+        for path in ['./out_bitstreams', '../out_bitstreams', '../../out_bitstreams']:
+            if os.path.isdir(path):
+                self.txt_directory.setText(os.path.abspath(path))
+                return
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -92,6 +116,8 @@ class BitstreamQueueWidget(QGroupBox):
         )
         if path:
             self.txt_directory.setText(path)
+            # Auto-load bitstreams from new directory
+            self._load_bitstreams()
     
     def _load_bitstreams(self):
         """Load bitstreams from selected directory."""

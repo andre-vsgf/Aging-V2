@@ -1,192 +1,213 @@
 # -*- coding: utf-8 -*-
 """
-Configuration management for CROC Monitor
+Configuration Module for CROC FPGA Monitor
 
-Handles cross-platform settings and paths for Windows/Linux.
+Handles persistent settings storage and default values.
+Default bitstream directory is set to 'out_bitstreams' in the repository root.
 """
 
-import json
 import os
-import platform
+import sys
+import json
 from pathlib import Path
 
-SETTINGS_FILE = "settings.json"
+# ============================================================================
+# Platform Detection
+# ============================================================================
 
-# --- Global Variables ---
-FPGA_PORT = ""          # USB-UART to FPGA
-SYSTEM_BAUD = 115200    # UART baud rate (matches config.h)
+IS_WINDOWS = sys.platform.startswith('win')
+IS_LINUX = sys.platform.startswith('linux')
 
-# Vivado paths (will be auto-detected or configured)
-VIVADO_PATH = ""
-BITSTREAM_DIR = ""
+# ============================================================================
+# Path Utilities
+# ============================================================================
 
-# Logging
-LOG_FOLDER = os.path.join(os.getcwd(), "logs")
-LOG_INTERVAL_MS = 500
+def get_app_dir() -> Path:
+    """Get the application directory (where main.py is located)."""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        return Path(sys.executable).parent
+    else:
+        # Running as script
+        return Path(__file__).parent
 
-# --- Platform Detection ---
-IS_WINDOWS = platform.system() == "Windows"
-IS_LINUX = platform.system() == "Linux"
+
+def get_repo_root() -> Path:
+    """Get the repository root directory (parent of App/)."""
+    app_dir = get_app_dir()
+    # Assume App/ is inside the repository root
+    if app_dir.name == 'App':
+        return app_dir.parent
+    return app_dir
 
 
-def get_default_ports():
-    """Get default serial port based on OS."""
+def get_default_bitstream_dir() -> str:
+    """
+    Get the default bitstream directory.
+    
+    Returns the path to 'out_bitstreams' folder in the repository root.
+    If not found, returns the current working directory.
+    """
+    repo_root = get_repo_root()
+    out_bitstreams = repo_root / 'out_bitstreams'
+    
+    if out_bitstreams.exists() and out_bitstreams.is_dir():
+        return str(out_bitstreams)
+    
+    # Fallback: try from current working directory
+    cwd_bitstreams = Path.cwd() / 'out_bitstreams'
+    if cwd_bitstreams.exists() and cwd_bitstreams.is_dir():
+        return str(cwd_bitstreams)
+    
+    # Last resort: current directory
+    return str(Path.cwd())
+
+
+def find_vivado() -> str:
+    """
+    Attempt to find Vivado installation.
+    
+    Searches common installation paths on Windows and Linux.
+    """
     if IS_WINDOWS:
-        return {"fpga": "COM3"}
-    elif IS_LINUX:
-        return {"fpga": "/dev/ttyUSB0"}
-    return {"fpga": ""}
-
-
-def get_default_vivado_paths():
-    """
-    Get default Vivado installation paths based on OS.
-    Returns tuple: (vivado_executable, default_bitstream_dir)
-    """
-    if IS_WINDOWS:
-        # Common Windows Vivado installation paths
-        possible_paths = [
-            r"C:\Xilinx\Vivado\2024.2\bin\vivado.bat",
-            r"C:\Xilinx\Vivado\2024.1\bin\vivado.bat",
-            r"C:\Xilinx\Vivado\2023.2\bin\vivado.bat",
-            r"C:\Xilinx\2025.1\Vivado\bin\vivado.bat",
-            r"C:\Xilinx\2025.2\Vivado\bin\vivado.bat",
-            r"C:\Xilinx\Vivado_Lab\2024.2\bin\vivado_lab.bat",
+        # Common Windows paths
+        search_paths = [
+            Path("C:/Xilinx/Vivado"),
+            Path("D:/Xilinx/Vivado"),
+            Path(os.environ.get("XILINX_VIVADO", "C:/Xilinx/Vivado"))
         ]
-        for p in possible_paths:
-            if os.path.exists(p):
-                return p, str(Path.home() / "Documents" / "FPGA_Bitstreams")
-        return "", str(Path.home() / "Documents" / "FPGA_Bitstreams")
-    
-    elif IS_LINUX:
-        # Common Linux Vivado installation paths
-        possible_paths = [
-            "/tools/Xilinx/Vivado/2024.2/bin/vivado",
-            "/opt/Xilinx/Vivado/2024.2/bin/vivado",
-            "/tools/Xilinx/Vivado/2024.1/bin/vivado",
-            "/opt/Xilinx/Vivado/2024.1/bin/vivado",
-            str(Path.home() / "Xilinx" / "Vivado" / "2024.2" / "bin" / "vivado"),
+        executable_pattern = "*/bin/vivado.bat"
+    else:
+        # Common Linux paths
+        search_paths = [
+            Path("/opt/Xilinx/Vivado"),
+            Path("/tools/Xilinx/Vivado"),
+            Path.home() / "Xilinx/Vivado"
         ]
-        for p in possible_paths:
-            if os.path.exists(p):
-                return p, str(Path.home() / "FPGA_Bitstreams")
-        return "", str(Path.home() / "FPGA_Bitstreams")
+        executable_pattern = "*/bin/vivado"
     
-    return "", ""
-
-
-def find_vivado_executable():
-    """
-    Attempt to find Vivado executable in PATH or common locations.
-    Returns the path if found, empty string otherwise.
-    """
-    import shutil
-    import glob
-    
-    # Try PATH first
-    exe_names = ["vivado", "vivado.bat", "vivado_lab", "vivado_lab.bat"]
-    for name in exe_names:
-        path = shutil.which(name)
-        if path:
-            return path
-    
-    # Try default paths
-    default_path, _ = get_default_vivado_paths()
-    if default_path and os.path.exists(default_path):
-        return default_path
-    
-    # Windows: search common install locations
-    if IS_WINDOWS:
-        patterns = [
-            r"C:\Xilinx\Vivado\*\bin\vivado.bat",
-            r"C:\Xilinx\*\Vivado\bin\vivado.bat",
-            r"C:\Xilinx\Vivado_Lab\*\bin\vivado_lab.bat",
-        ]
-        for pattern in patterns:
-            matches = glob.glob(pattern)
-            if matches:
-                return matches[-1]  # Return newest version
-    
-    # Linux: search common install locations
-    elif IS_LINUX:
-        patterns = [
-            "/tools/Xilinx/Vivado/*/bin/vivado",
-            "/opt/Xilinx/Vivado/*/bin/vivado",
-        ]
-        for pattern in patterns:
-            import glob
-            matches = glob.glob(pattern)
-            if matches:
-                return sorted(matches)[-1]  # Return newest version
+    for base_path in search_paths:
+        if base_path.exists():
+            # Find newest version
+            versions = sorted(base_path.glob(executable_pattern), reverse=True)
+            if versions:
+                return str(versions[0])
     
     return ""
 
 
-def load_config():
-    """Load configuration from settings file."""
-    global FPGA_PORT, SYSTEM_BAUD, VIVADO_PATH, BITSTREAM_DIR
-    
-    defaults = get_default_ports()
-    vivado_default, bitstream_default = get_default_vivado_paths()
-    
-    if os.path.exists(SETTINGS_FILE):
+# ============================================================================
+# Configuration File
+# ============================================================================
+
+CONFIG_FILE = get_app_dir() / "config.json"
+
+
+def load_config() -> dict:
+    """Load configuration from JSON file."""
+    if CONFIG_FILE.exists():
         try:
-            with open(SETTINGS_FILE, 'r') as f:
-                data = json.load(f)
-                FPGA_PORT = data.get("fpga_port", defaults["fpga"])
-                SYSTEM_BAUD = data.get("baud_rate", 115200)
-                VIVADO_PATH = data.get("vivado_path", vivado_default)
-                BITSTREAM_DIR = data.get("bitstream_dir", bitstream_default)
-        except Exception as e:
-            print(f"Error loading config: {e}")
-            _apply_defaults(defaults, vivado_default, bitstream_default)
-    else:
-        _apply_defaults(defaults, vivado_default, bitstream_default)
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
+
+
+def save_config(fpga_port: str = None, baud_rate: int = None, 
+                vivado_path: str = None, bitstream_dir: str = None):
+    """Save configuration to JSON file."""
+    config = load_config()
     
-    # Try to auto-detect Vivado if not configured
-    if not VIVADO_PATH or not os.path.exists(VIVADO_PATH):
-        detected = find_vivado_executable()
-        if detected:
-            VIVADO_PATH = detected
-
-
-def _apply_defaults(port_defaults, vivado_default, bitstream_default):
-    """Apply default configuration values."""
-    global FPGA_PORT, VIVADO_PATH, BITSTREAM_DIR
-    FPGA_PORT = port_defaults["fpga"]
-    VIVADO_PATH = vivado_default
-    BITSTREAM_DIR = bitstream_default
-
-
-def save_config(fpga_port=None, baud_rate=None, vivado_path=None, bitstream_dir=None):
-    """Save configuration to settings file."""
-    global FPGA_PORT, SYSTEM_BAUD, VIVADO_PATH, BITSTREAM_DIR
-    
-    # Update globals if provided
     if fpga_port is not None:
-        FPGA_PORT = fpga_port
+        config['fpga_port'] = fpga_port
     if baud_rate is not None:
-        SYSTEM_BAUD = baud_rate
+        config['baud_rate'] = baud_rate
     if vivado_path is not None:
-        VIVADO_PATH = vivado_path
+        config['vivado_path'] = vivado_path
     if bitstream_dir is not None:
-        BITSTREAM_DIR = bitstream_dir
-    
-    data = {
-        "fpga_port": FPGA_PORT,
-        "baud_rate": SYSTEM_BAUD,
-        "vivado_path": VIVADO_PATH,
-        "bitstream_dir": BITSTREAM_DIR,
-    }
+        config['bitstream_dir'] = bitstream_dir
     
     try:
-        with open(SETTINGS_FILE, 'w') as f:
-            json.dump(data, f, indent=4)
-        return True
-    except Exception as e:
-        print(f"Error saving config: {e}")
-        return False
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2)
+    except IOError as e:
+        print(f"Warning: Could not save config: {e}")
 
 
-# Load config on import
-load_config()
+# ============================================================================
+# Default Values
+# ============================================================================
+
+_config = load_config()
+
+# Serial Port (platform-specific default)
+if IS_WINDOWS:
+    DEFAULT_PORT = "COM3"
+else:
+    DEFAULT_PORT = "/dev/ttyUSB0"
+
+FPGA_PORT = _config.get('fpga_port', DEFAULT_PORT)
+SYSTEM_BAUD = _config.get('baud_rate', 115200)
+
+# Vivado Path (auto-detect if not configured)
+VIVADO_PATH = _config.get('vivado_path', '') or find_vivado()
+
+# Bitstream Directory (default to out_bitstreams in repo root)
+BITSTREAM_DIR = _config.get('bitstream_dir', '') or get_default_bitstream_dir()
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+
+LOG_LEVEL = _config.get('log_level', 'INFO')
+LOG_DIR = get_app_dir() / 'logs'
+LOG_DIR.mkdir(exist_ok=True)
+
+# ============================================================================
+# Experiment Configuration
+# ============================================================================
+
+# Default timing values (milliseconds)
+DEFAULT_STABILIZATION_TIME_MS = 3000
+DEFAULT_COOLDOWN_TIME_MS = 10000
+
+# Default phase step (degrees)
+DEFAULT_PHASE_STEP = 5.0
+
+# Clock period for slack calculation (nanoseconds)
+# Adjust this based on your FPGA clock frequency
+CLOCK_PERIOD_NS = 50.0  # 20 MHz default
+
+# ============================================================================
+# UI Configuration
+# ============================================================================
+
+# Window settings
+WINDOW_TITLE = "CROC FPGA Sensor Monitor & Programmer"
+WINDOW_WIDTH = 1400
+WINDOW_HEIGHT = 900
+
+# Theme colors
+THEME_COLORS = {
+    'background': '#1e1e1e',
+    'foreground': '#d4d4d4',
+    'accent': '#0d6efd',
+    'success': '#28a745',
+    'warning': '#ffc107',
+    'error': '#dc3545',
+    'info': '#17a2b8'
+}
+
+# ============================================================================
+# Debug Mode
+# ============================================================================
+
+DEBUG_MODE = _config.get('debug_mode', False)
+
+if DEBUG_MODE:
+    print(f"[CONFIG] App Dir: {get_app_dir()}")
+    print(f"[CONFIG] Repo Root: {get_repo_root()}")
+    print(f"[CONFIG] Bitstream Dir: {BITSTREAM_DIR}")
+    print(f"[CONFIG] Vivado Path: {VIVADO_PATH}")
+    print(f"[CONFIG] FPGA Port: {FPGA_PORT}")
