@@ -529,7 +529,7 @@ class MainWindow(QMainWindow):
         baud_layout = QHBoxLayout()
         self.cmb_baud = QComboBox()
         self.cmb_baud.addItems(["9600", "19200", "38400", "57600", "115200", "125000", "230400", "460800", "921600"])
-        self.cmb_baud.setCurrentText(str(config.BAUD_RATE))
+        self.cmb_baud.setCurrentText(str(config.SYSTEM_BAUD))
         baud_layout.addWidget(QLabel("Baud:"))
         baud_layout.addWidget(self.cmb_baud, 1)
         sg_layout.addLayout(baud_layout)
