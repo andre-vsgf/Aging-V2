@@ -8,9 +8,8 @@ cd /d "%~dp0"
 :: FIX: Removed parentheses around .venv in the echo command to avoid syntax errors
 if not exist ".venv" (
     echo [ERROR] Virtual environment .venv not found.
-    echo Please run the Setup script first or create the env manually.
-    pause
-    exit /b 1
+    echo Running setup_windows.bat to create .venv
+    call "Setup\setup_windows.bat"
 )
 
 :: --- 3. Activate Virtual Environment ---
