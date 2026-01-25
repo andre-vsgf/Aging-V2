@@ -1,26 +1,40 @@
 @echo off
 setlocal
 
-:: --- 1. Navigate to the script's directory ---
+:: --- 1. Navigate to the script's directory (Root of Aging-V2) ---
 cd /d "%~dp0"
 
-:: --- 2. Check for Virtual Environment ---
-:: FIX: Removed parentheses around .venv in the echo command to avoid syntax errors
-if not exist ".venv" (
-    echo [ERROR] Virtual environment .venv not found.
-    echo Running setup_windows.bat to create .venv
-    call "Setup\setup_windows.bat"
+:: --- 2. Check for Virtual Environment & Auto-Setup ---
+if not exist ".venv\Scripts\activate.bat" (
+    echo [INFO] Virtual environment not found.
+    echo [INFO] Initiating automated setup...
+
+    if exist "Setup\setup_windows.bat" (
+        :: The setup script expects to be run from inside the Setup folder
+        pushd Setup
+        call setup_windows.bat
+        popd
+        
+        :: Force return to root just in case
+        cd /d "%~dp0"
+    ) else (
+        echo [ERROR] Setup script not found at Setup\setup_windows.bat
+        pause
+        exit /b 1
+    )
+
+    echo [INFO] Setup complete. Launching application...
 )
 
 :: --- 3. Activate Virtual Environment ---
-echo Activating virtual environment...
-call ".venv\Scripts\activate.bat"
-
-if errorlevel 1 (
-    echo [ERROR] Failed to activate virtual environment.
+:: Double check if venv exists now
+if not exist ".venv\Scripts\activate.bat" (
+    echo [ERROR] Setup failed to create virtual environment.
     pause
     exit /b 1
 )
+
+call ".venv\Scripts\activate.bat"
 
 :: --- 4. Clear Qt Environment Variables ---
 set QT_PLUGIN_PATH=

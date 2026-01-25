@@ -1,38 +1,47 @@
 #!/bin/bash
 
+# Navigate to the script's directory (Root of Aging-V2)
 cd "$(dirname "$0")"
 
+# --- 1. Check for Virtual Environment & Auto-Setup ---
 if [ ! -d ".venv" ]; then
-    echo "ERRO: Ambiente virtual não encontrado. Rode o Setup primeiro."
-    exit 1
+    echo "[INFO] Ambiente virtual não encontrado."
+    echo "[INFO] Executando script de setup automáticamenete..."
+
+    if [ -f "Setup/setup_linux.sh" ]; then
+        # Ensure setup is executable
+        chmod +x Setup/setup_linux.sh
+        # Run setup
+        ./Setup/setup_linux.sh
+        
+        # Verify success
+        if [ ! -d ".venv" ]; then
+            echo "[ERRO] O setup falhou ou foi cancelado."
+            exit 1
+        fi
+    else
+        echo "[ERRO] Script de setup não encontrado em Setup/setup_linux.sh"
+        exit 1
+    fi
+    echo "[INFO] Setup concluído. Continuando..."
 fi
 
-# --- 1. Ativa o ambiente virtual (.venv) ---
+# --- 2. Activate Virtual Environment ---
 echo "Ativando o ambiente virtual..."
 source .venv/bin/activate
 
-# --- 2. Localiza o diretório das bibliotecas do PySide6 ---
-# Busca pelo arquivo libQt6Core.so.6 dentro do venv
+# --- 3. Setup Qt Libraries Path (Linux Mint/Ubuntu Fix) ---
 PYSIDE_LIB_PATH=$(find .venv -name "libQt6Core.so.6" -exec dirname {} \;)
 
 if [ -z "$PYSIDE_LIB_PATH" ]; then
-    echo "ERRO: Não foi possível encontrar a pasta das bibliotecas PySide6 no .venv."
-    echo "Certifique-se de que o PySide6 foi instalado corretamente."
+    echo "ERRO: Bibliotecas PySide6 não encontradas. Tente rodar o Setup novamente."
     exit 1
 fi
 
-# --- 3. Exporta LD_LIBRARY_PATH para forçar o uso das libs do venv ---
-# Isso resolve o conflito de versão com as bibliotecas Qt do sistema Linux Mint
 export LD_LIBRARY_PATH="$PYSIDE_LIB_PATH:$LD_LIBRARY_PATH"
-
-# --- 4. Remove caminhos de plugins do sistema para evitar conflitos de carregamento ---
 export QT_PLUGIN_PATH=""
 export QML2_IMPORT_PATH=""
 
-# --- 5. Executa a aplicação principal ---
+# --- 4. Run Application ---
 echo "Iniciando a aplicação..."
 python App/App.py
-
-# --- 6. Desativa o ambiente virtual ao final (opcional, mas bom costume) ---
-# Note: Esta linha só é executada se você rodar o script usando ./run.sh
-deactivate
