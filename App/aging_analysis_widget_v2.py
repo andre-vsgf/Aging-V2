@@ -452,7 +452,10 @@ class ExperimentControlWidget(QGroupBox):
         self.btn_skip.setEnabled(is_running and state == 'RUNNING')
     
     def update_time(self):
-        """Update experiment time display."""
+        if self.controller._experiment_start is None:
+            self.lbl_time.setText("Time: 00:00:00")
+            return
+
         hours = self.controller.experiment_hours
         h = int(hours)
         m = int((hours - h) * 60)

@@ -519,11 +519,13 @@ class ExperimentController(QObject):
         return True
     
     def stop_experiment(self):
-        """Stop the experiment."""
         self._stabilization_timer.stop()
         self._cooldown_timer.stop()
         self._set_state(ExperimentState.IDLE)
-        self.log_message.emit("Experiment stopped")
+        self._experiment_start = None  # Crucial: Limpa a referência de tempo
+        self._pending_trigger_alarms = {}
+        self._pending_total_alarms = 0
+        self.log_message.emit("🛑 Experiment stopped and timer cleared.")
         self.save_transitions()
     
     def pause_experiment(self):
