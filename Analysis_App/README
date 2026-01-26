@@ -1,0 +1,41 @@
+BUILD (Windows)
+1) Instale Python 3.10+.
+2) No terminal (PowerShell):
+   cd logtool
+   python -m venv .venv
+   .\.venv\Scripts\activate
+   pip install -r requirements.txt
+
+3) Rodar em modo dev:
+   python app.py
+
+4) Gerar executável:
+   pyinstaller --noconfirm --onefile --windowed app.py
+
+Saída:
+  dist/app.exe
+
+Observação: para evitar "app.exe", renomeie no comando:
+  pyinstaller --noconfirm --onefile --windowed --name AgingLogTool app.py
+
+
+BUILD (Linux)
+1) Instale Python 3.10+ e dependências de build do Qt (normalmente já vem ok).
+2) No terminal:
+   cd logtool
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+
+3) Rodar em modo dev:
+   python3 app.py
+
+4) Gerar binário:
+   pyinstaller --noconfirm --onefile --windowed --name AgingLogTool app.py
+
+Saída:
+  dist/AgingLogTool
+
+IMPORTANTE (cross-build):
+- Você NÃO gera .exe do Windows no Linux (nem o contrário) de forma confiável.
+- Faça o build em cada SO (ou use CI com runners Windows e Linux).

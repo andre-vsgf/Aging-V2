@@ -69,6 +69,15 @@ class MainWindow(QMainWindow):
         
         # Experiment start time
         self._experiment_start_time = None
+
+        self._last_telemetry = {
+            "fpga_temp": None,
+            "vccint": None,
+            "vcore": None,
+            "iout": None,
+            "vin": None,
+            "ext_temp": None,
+        }
         
         # Initialize Smart Logger for efficient long-term logging
         self._init_smart_logger()
@@ -689,24 +698,29 @@ class MainWindow(QMainWindow):
 
     @Slot(dict)
     def _on_sensor_data(self, data: dict):
-        """Handle incoming sensor data from all 4 sensor types."""
-        # Extract all 4 sensor values
         alarm_f = data.get('alarm_f', 0)
         alarm_rf = data.get('alarm_rf', 0)
         alarm_uart = data.get('alarm_dm', data.get('alarm_uart', 0))
         alarm_obi_dmx = data.get('alarm_obi_dmx', data.get('alarm_obi', 0))
-        
-        # Update visualization widget
+
+        # Fallback: primeiro tenta no frame atual; se não vier, usa cache; se ainda não tiver, 0.0
+        def pick(key, default=0.0):
+            v = data.get(key, None)
+            if v is None:
+                v = self._last_telemetry.get(key, None)
+            try:
+                return float(v) if v is not None else float(default)
+            except Exception:
+                return float(default)
+
+        fpga_temp = pick("fpga_temp")
+        vccint   = pick("vccint")
+        vcore    = pick("vcore")
+        iout     = pick("iout")
+
         self.sensor_widget.updateSensorData(alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx)
-        
-        # Get current environmental data
-        fpga_temp = data.get('fpga_temp', 0)
-        vccint = data.get('vccint', 0)
-        vcore = data.get('vcore', 0)
-        iout = data.get('iout', 0)
-        
-        # Log to SmartLogger (will filter based on mode)
-        logged = self.smart_logger.log_data(
+
+        self.smart_logger.log_data(
             alarm_f=alarm_f,
             alarm_rf=alarm_rf,
             alarm_uart=alarm_uart,
@@ -716,9 +730,9 @@ class MainWindow(QMainWindow):
             vcore=vcore,
             iout=iout
         )
-        
-        # Process through aging widget (for auto-program)
+
         self.aging_widget.process_sensor_data(alarm_f, alarm_rf, alarm_uart, alarm_obi_dmx)
+
         
         # Check for NEW alarms (for UI logging)
         new_alarm_detected = False
@@ -772,11 +786,25 @@ class MainWindow(QMainWindow):
             elif evt_type == 'error':
                 self.log(f"[STM32] ERROR - {data.get('err', 'UNK')}")
 
+    def _safe_float(self, v):
+        try:
+            if v is None:
+                return None
+            return float(v)
+        except Exception:
+            return None
+
     @Slot(dict)
     def _on_telemetry_data(self, data: dict):
         """Handle telemetry data from router."""
         # Update telemetry widget
         self.telemetry_widget.updateFromDict(data)
+
+        for k in ("fpga_temp", "vccint", "vcore", "iout", "vin", "ext_temp"):
+            if k in data:
+                fv = self._safe_float(data.get(k))
+                if fv is not None:
+                    self._last_telemetry[k] = fv
         
         # Update quick info labels
         if 'vcore' in data:
