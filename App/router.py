@@ -319,8 +319,8 @@ class UARTRouter(QObject):
                 count_uart = bin(alarm_uart).count('1')
                 count_obi = bin(alarm_obi_dmx).count('1')
                 total_alarms = count_f + count_rf + count_uart + count_obi
-                
                 sensor_data = {
+                    # Alarms (4 fixed registers)
                     'alarm_f': alarm_f,
                     'alarm_rf': alarm_rf,
                     'alarm_uart': alarm_uart,
@@ -329,6 +329,17 @@ class UARTRouter(QObject):
                     'alarm_rf_count': count_rf,
                     'alarm_uart_count': count_uart,
                     'alarm_obi_count': count_obi,
+
+                    # Environmental / telemetry (explicit keys expected by logger/GUI)
+                    'fpga_temp': fpga_temp,
+                    'vccint': vccint,
+                    'vcore': self._telemetry.get('vcore', 0.0),
+                    'vin': self._telemetry.get('vin', 0.0),
+                    'iout': self._telemetry.get('iout', 0.0),
+                    'ext_temp': self._telemetry.get('ext_temp', 0.0),
+                    'mcu_temp': self._telemetry.get('mcu_temp', 0.0),
+
+                    # Legacy aliases used by some older widgets/exports
                     'dut_temp': fpga_temp,
                     'dut_volt': vccint,
                     'dut_slack': total_alarms,
@@ -363,6 +374,7 @@ class UARTRouter(QObject):
                 total_alarms = count_f + count_rf + count_uart + count_obi
                 
                 sensor_data = {
+                    # Alarms (4 fixed registers)
                     'alarm_f': alarm_f,
                     'alarm_rf': alarm_rf,
                     'alarm_uart': alarm_uart,
@@ -371,6 +383,17 @@ class UARTRouter(QObject):
                     'alarm_rf_count': count_rf,
                     'alarm_uart_count': count_uart,
                     'alarm_obi_count': count_obi,
+
+                    # Environmental / telemetry (explicit keys expected by logger/GUI)
+                    'fpga_temp': self._telemetry.get('fpga_temp', 0.0),
+                    'vccint': self._telemetry.get('vccint', 0.0),
+                    'vcore': self._telemetry.get('vcore', 0.0),
+                    'vin': self._telemetry.get('vin', 0.0),
+                    'iout': self._telemetry.get('iout', 0.0),
+                    'ext_temp': self._telemetry.get('ext_temp', 0.0),
+                    'mcu_temp': self._telemetry.get('mcu_temp', 0.0),
+
+                    # Legacy aliases used by some older widgets/exports
                     'dut_temp': self._telemetry.get('fpga_temp', 0.0),
                     'dut_volt': self._telemetry.get('vccint', 0.0),
                     'dut_slack': total_alarms,
@@ -393,43 +416,15 @@ class UARTRouter(QObject):
                 return
             except ValueError:
                 pass
-        
         # =====================================================================
-        # 4. Check for BASIC 2-sensor format (backwards compatibility)
-        # "F: 0x... | RF: 0x..."
+        # 4. Legacy 2-sensor format (DEPRECATED)
+        # We intentionally do not parse "F: 0x.. | RF: 0x.." anymore. This prevents
+        # mixing old firmware output with the fixed 4-sensor log/telemetry model.
         # =====================================================================
-        match_basic = self._sensor_regex_basic.search(line_str)
+        match_basic = self._sensor_regex_basic.search(line_str) if hasattr(self, "_sensor_regex_basic") else None
         if match_basic:
-            try:
-                alarm_f = int(match_basic.group(1), 16)
-                alarm_rf = int(match_basic.group(2), 16)
-                
-                count_f = bin(alarm_f).count('1')
-                count_rf = bin(alarm_rf).count('1')
-                
-                sensor_data = {
-                    'alarm_f': alarm_f,
-                    'alarm_rf': alarm_rf,
-                    'alarm_uart': 0,
-                    'alarm_obi_dmx': 0,
-                    'alarm_f_count': count_f,
-                    'alarm_rf_count': count_rf,
-                    'alarm_uart_count': 0,
-                    'alarm_obi_count': 0,
-                    'dut_temp': self._telemetry.get('fpga_temp', 0.0),
-                    'dut_volt': self._telemetry.get('vccint', 0.0),
-                    'dut_slack': count_f + count_rf,
-                }
-                
-                self._telemetry.update({
-                    'alarm_f': alarm_f,
-                    'alarm_rf': alarm_rf
-                })
-                
-                self.aging_data_received.emit(sensor_data)
-                return
-            except ValueError:
-                pass
+            self.log_text_received.emit("[WARN] Ignoring legacy 2-sensor alarm frame. Update firmware to 4-sensor format.")
+            return
         
         # =====================================================================
         # 5. Regular text line (not telemetry/sensor data)

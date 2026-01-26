@@ -1,0 +1,14 @@
+{
+  "radiation_model": {
+    "dose_rate_krad_per_hour": 1.0,
+    "experiment_start": null,
+    "initial_dose_krad": 0.0
+  },
+  "events": [],
+  "triggered_history": {
+    "alarm_f": [],
+    "alarm_rf": [],
+    "alarm_uart": [],
+    "alarm_obi_dmx": []
+  }
+}
