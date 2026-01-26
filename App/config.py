@@ -81,7 +81,7 @@ def find_vivado() -> str:
             Path(r"C:/Xilinx/2025.1/Vivado/bin/vivado.bat"),
             Path(r"C:/Xilinx/2025.2/Vivado/bin/vivado.bat"),
             Path(r"C:/Xilinx/Vivado_Lab/2024.2/bin/vivado_lab.bat"),
-            Path(r"C:/AMDDesignTools/2025.2/Vivado/vivado.bat")
+            Path(r"C:/AMDDesignTools/2025.2/Vivado/bin/vivado.bat")
         ])
 
         search_paths = [
