@@ -117,15 +117,14 @@ static inline uint32_t popcount(uint32_t x) {
 // Print hex with leading zeros (8 digits)
 // ===========================================================================
 static void print_hex32(uint32_t val) {
-    const char hex[] = "0123456789ABCDEF";
-    char buf[9];
-    for (int i = 7; i >= 0; i--) {
-        buf[i] = hex[val & 0xF];
-        val >>= 4;
+    /* Emite 8 nibbles via %x, garantindo sempre 8 dígitos.
+     */
+    for (int shift = 28; shift >= 0; shift -= 4) {
+        uint32_t nib = (val >> (uint32_t)shift) & 0xFu;
+        printf("%x", nib);
     }
-    buf[8] = '\0';
-    printf("%s", buf);
 }
+
 
 // ===========================================================================
 // Main Program
