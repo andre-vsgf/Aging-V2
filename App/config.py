@@ -66,35 +66,67 @@ def get_default_bitstream_dir() -> str:
 def find_vivado() -> str:
     """
     Attempt to find Vivado installation.
-    
-    Searches common installation paths on Windows and Linux.
+
+    Searches common installation paths on Windows and Linux,
+    including legacy explicit paths.
     """
+    explicit_candidates = []
+
     if IS_WINDOWS:
-        # Common Windows paths
+        # Explicit known Windows Vivado paths (legacy + current)
+        explicit_candidates.extend([
+            Path(r"C:/Xilinx/Vivado/2024.2/bin/vivado.bat"),
+            Path(r"C:/Xilinx/Vivado/2024.1/bin/vivado.bat"),
+            Path(r"C:/Xilinx/Vivado/2023.2/bin/vivado.bat"),
+            Path(r"C:/Xilinx/2025.1/Vivado/bin/vivado.bat"),
+            Path(r"C:/Xilinx/2025.2/Vivado/bin/vivado.bat"),
+            Path(r"C:/Xilinx/Vivado_Lab/2024.2/bin/vivado_lab.bat"),
+            Path(r"C:/AMDDesignTools/2025.2/Vivado/vivado.bat")
+        ])
+
         search_paths = [
             Path("C:/Xilinx/Vivado"),
             Path("D:/Xilinx/Vivado"),
-            Path(os.environ.get("XILINX_VIVADO", "C:/Xilinx/Vivado"))
+            Path(os.environ.get("XILINX_VIVADO", "C:/Xilinx/Vivado")),
+            Path("C:/Xilinx"),  # cobre Xilinx/<versão>/Vivado
         ]
         executable_pattern = "*/bin/vivado.bat"
+
     else:
-        # Common Linux paths
+        # Explicit known Linux Vivado paths (legacy + current)
+        explicit_candidates.extend([
+            Path("/tools/Xilinx/Vivado/2024.2/bin/vivado"),
+            Path("/opt/Xilinx/Vivado/2024.2/bin/vivado"),
+            Path("/tools/Xilinx/Vivado/2024.1/bin/vivado"),
+            Path("/opt/Xilinx/Vivado/2024.1/bin/vivado"),
+            Path.home() / "Xilinx/Vivado/2024.2/bin/vivado",
+            Path.home() / "Xilinx/Vivado/2025.1/bin/vivado",
+            Path.home() / "Xilinx/Vivado/2025.2/bin/vivado",
+            Path.home() / "2025.2/Vivado/bin/vivado",
+            Path.home() / "2025.1/Vivado/bin/vivado",
+            Path.home() / "2024.2/Vivado/bin/vivado",
+        ])
+
         search_paths = [
             Path("/opt/Xilinx/Vivado"),
             Path("/tools/Xilinx/Vivado"),
-            Path.home() / "Xilinx/Vivado"
+            Path.home() / "Xilinx/Vivado",
         ]
         executable_pattern = "*/bin/vivado"
-    
+
+    # 1) Prefer explicit known-good paths
+    for candidate in explicit_candidates:
+        if candidate.exists():
+            return str(candidate)
+
+    # 2) Fallback: search newest version in common roots
     for base_path in search_paths:
         if base_path.exists():
-            # Find newest version
             versions = sorted(base_path.glob(executable_pattern), reverse=True)
             if versions:
                 return str(versions[0])
-    
-    return ""
 
+    return ""
 
 # ============================================================================
 # Configuration File

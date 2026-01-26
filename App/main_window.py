@@ -76,7 +76,10 @@ class MainWindow(QMainWindow):
         # Build UI
         self._init_ui()
         self._connect_signals()
-        
+
+        # Auto-load bitstreams from default directory on startup
+        QTimer.singleShot(0, self._refresh_bitstreams)
+
         # Timer for periodic updates
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self._periodic_update)
@@ -901,7 +904,10 @@ class MainWindow(QMainWindow):
 
     def _refresh_bitstreams(self):
         """Refresh bitstream list."""
-        path = self.txt_bitstream_dir.text()
+        path = self.txt_bitstream_dir.text().strip()
+        if not path:
+            return
+
         count = self.bitstream_manager.load_directory(path)
         
         self.cmb_bitstreams.clear()
