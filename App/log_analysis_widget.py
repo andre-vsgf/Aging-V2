@@ -1,28 +1,28 @@
 # -*- coding: utf-8 -*-
 """
-Log Analysis Widget (Embedded)
+Log Analysis Widget (Embedded) — Matplotlib version
 
-This widget embeds the standalone log analysis utility into the main application.
+This widget embeds the offline log analysis utility into the main application.
 It provides:
 - File / folder selection for .txt logs
 - CSV generation aligned by timestamp
 - Plot generation (temperatures + voltages)
-- Embedded preview charts and CSV preview table
+- Embedded preview charts (Matplotlib in Qt) and CSV preview table
 - Event annotations merged into observations column
 
 Design goals:
 - Minimal UI footprint (fits at the right side of the Log tab)
-- No external environment setup (works with the app packaging)
 - Safe defaults; robust to missing fields; forward-fill time series
 
 Notes:
 - The router emits live telemetry; this widget is OFFLINE analysis for archived logs.
-- Parsing targets the textual logs containing "[FPGA]" and "[STM32]" lines, plus bitstream/program events.
+- Parsing targets textual logs containing "[FPGA]" and "[STM32]" lines, plus bitstream/program events.
 """
 
 from __future__ import annotations
 
 import glob
+import re
 from dataclasses import dataclass
 from datetime import datetime, date
 from pathlib import Path
@@ -30,16 +30,15 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
+from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QPushButton, QLineEdit,
     QFileDialog, QSpinBox, QDoubleSpinBox, QMessageBox, QProgressBar,
     QTableWidget, QTableWidgetItem
 )
 
-from PySide6.QtGui import QPainter, QPen, QPixmap, QColor
-
-import re
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 
 # -------------------------
@@ -264,154 +263,74 @@ class _Worker(QObject):
             existing_cols = [c for c in cols if c in df.columns] + [c for c in df.columns if c not in cols and c != "timestamp_dt"]
             df[existing_cols].to_csv(csv_path, index=False, encoding="utf-8")
 
+            self.progress.emit(80)
+            plot_paths = self._save_plots(df, outdir=outdir, stem=stem)
+
             self.progress.emit(100)
-            # plot_paths será gerado pela UI (LogAnalysisWidget) após atualizar os charts
-            self.finished.emit(df, str(csv_path), [])
+            self.finished.emit(df, str(csv_path), [str(p) for p in plot_paths])
 
         except Exception as e:
             self.error.emit(str(e))
 
-class _SimplePlot(QWidget):
-    """
-    Plot minimalista (Qt-native) para séries temporais.
-    - Não depende de matplotlib
-    - Suporta múltiplas séries
-    - Renderiza eixos simples + polilinha(s)
-    """
+    def _save_plots(self, df: pd.DataFrame, outdir: Path, stem: str) -> List[Path]:
+        outdir.mkdir(parents=True, exist_ok=True)
+        paths: List[Path] = []
+        x = df["timestamp_dt"]
+
+        # Temperaturas
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        if "T_STM32_C" in df.columns:
+            ax.plot(x, df["T_STM32_C"], label="STM32 T (°C)")
+        if "T_FPGA_C" in df.columns:
+            ax.plot(x, df["T_FPGA_C"], label="FPGA T (°C)")
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Temperature (°C)")
+        ax.legend()
+        fig.tight_layout()
+        p = outdir / f"{stem}_temperatures.png"
+        fig.savefig(p, dpi=150)
+        paths.append(p)
+
+        # Tensões
+        fig = Figure()
+        ax = fig.add_subplot(111)
+        if "Vc_STM32_V" in df.columns:
+            ax.plot(x, df["Vc_STM32_V"], label="STM32 Vc (V)")
+        if "VCCINT_FPGA_V" in df.columns:
+            ax.plot(x, df["VCCINT_FPGA_V"], label="FPGA VCCINT (V)")
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Voltage (V)")
+        ax.legend()
+        fig.tight_layout()
+        p = outdir / f"{stem}_voltages.png"
+        fig.savefig(p, dpi=150)
+        paths.append(p)
+
+        return paths
+
+
+class _Chart(QWidget):
     def __init__(self, title: str, parent=None):
         super().__init__(parent)
-        self._title = title
-        self._series: List[Tuple[List[float], str]] = []  # [(y_values, label), ...]
-        self._x: Optional[List[float]] = None             # x em segundos relativos
-        self._ylabel = ""
-        self._xmin = 0.0
-        self._xmax = 1.0
-        self._ymin = 0.0
-        self._ymax = 1.0
-        self.setMinimumHeight(180)
+        self._fig = Figure()
+        self._canvas = FigureCanvas(self._fig)
 
-    def set_data(self, x_seconds: List[float], series: List[Tuple[pd.Series, str]], ylabel: str):
-        # Converte para listas simples
-        self._x = list(x_seconds)
-        self._series = [(list(s.values if hasattr(s, "values") else s), label) for (s, label) in series]
-        self._ylabel = ylabel
+        layout = QVBoxLayout(self)
+        lab = QLabel(f"<b>{title}</b>")
+        layout.addWidget(lab)
+        layout.addWidget(self._canvas, 1)
 
-        # ranges
-        if self._x:
-            self._xmin, self._xmax = float(min(self._x)), float(max(self._x))
-            if self._xmin == self._xmax:
-                self._xmax = self._xmin + 1.0
-        ys = []
-        for y, _ in self._series:
-            ys.extend([v for v in y if v is not None])
-        if ys:
-            self._ymin, self._ymax = float(min(ys)), float(max(ys))
-            if self._ymin == self._ymax:
-                self._ymax = self._ymin + 1.0
-        else:
-            self._ymin, self._ymax = 0.0, 1.0
-
-        self.update()
-
-    def _map_x(self, x, left, width):
-        return left + (x - self._xmin) * width / (self._xmax - self._xmin)
-
-    def _map_y(self, y, top, height):
-        # y cresce para baixo no Qt
-        return top + (self._ymax - y) * height / (self._ymax - self._ymin)
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing, True)
-
-        w = self.width()
-        h = self.height()
-
-        # Margens
-        left = 52
-        right = 10
-        top = 24
-        bottom = 22
-
-        plot_w = max(10, w - left - right)
-        plot_h = max(10, h - top - bottom)
-
-        # Fundo
-        p.fillRect(0, 0, w, h, QColor(245, 245, 245))
-
-        # Título
-        p.setPen(QPen(QColor(0, 0, 0)))
-        p.drawText(8, 16, f"{self._title} — {self._ylabel}")
-
-        # Eixos
-        axis_pen = QPen(QColor(60, 60, 60))
-        axis_pen.setWidth(1)
-        p.setPen(axis_pen)
-        p.drawLine(left, top, left, top + plot_h)                 # Y
-        p.drawLine(left, top + plot_h, left + plot_w, top + plot_h)  # X
-
-        # Sem dados
-        if not self._x or not self._series:
-            p.setPen(QPen(QColor(120, 120, 120)))
-            p.drawText(left + 10, top + 20, "Sem dados para plotar.")
-            return
-
-        # Grade leve (3 linhas)
-        grid_pen = QPen(QColor(200, 200, 200))
-        grid_pen.setStyle(Qt.DashLine)
-        p.setPen(grid_pen)
-        for i in range(1, 4):
-            yy = top + int(i * plot_h / 4)
-            p.drawLine(left, yy, left + plot_w, yy)
-
-        # Desenho das séries
-        # Para evitar dependência de paleta externa, alterna 4 cores básicas.
-        colors = [QColor(0, 90, 160), QColor(160, 60, 0), QColor(0, 140, 80), QColor(120, 60, 140)]
-
-        for idx, (yvals, label) in enumerate(self._series):
-            if len(yvals) != len(self._x):
-                continue
-
-            pen = QPen(colors[idx % len(colors)])
-            pen.setWidth(2)
-            p.setPen(pen)
-
-            prev_ok = False
-            prev_x = prev_y = 0.0
-
-            for k in range(len(self._x)):
-                y = yvals[k]
-                if y is None:
-                    prev_ok = False
-                    continue
-
-                xx = self._map_x(self._x[k], left, plot_w)
-                yy = self._map_y(float(y), top, plot_h)
-
-                if prev_ok:
-                    p.drawLine(int(prev_x), int(prev_y), int(xx), int(yy))
-                prev_x, prev_y = xx, yy
-                prev_ok = True
-
-        # Legenda simples (canto superior direito do plot)
-        p.setPen(QPen(QColor(0, 0, 0)))
-        lx = left + plot_w - 160
-        ly = top + 16
-        for idx, (_, label) in enumerate(self._series):
-            c = colors[idx % len(colors)]
-            p.fillRect(lx, ly - 8, 10, 10, c)
-            p.drawText(lx + 14, ly, label)
-            ly += 14
-
-    def save_png(self, filepath: str):
-        """
-        Salva exatamente o que está renderizado no widget em PNG.
-        Deve ser chamado no thread da UI.
-        """
-        pix: QPixmap = self.grab()
-        pix.save(filepath, "PNG")
-
+    def plot(self, x, series: List[Tuple[pd.Series, str]], xlabel: str, ylabel: str):
+        self._fig.clear()
+        ax = self._fig.add_subplot(111)
+        for y, label in series:
+            ax.plot(x, y, label=label)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.legend()
+        self._fig.tight_layout()
+        self._canvas.draw()
 
 
 class LogAnalysisWidget(QWidget):
@@ -490,8 +409,8 @@ class LogAnalysisWidget(QWidget):
         root.addWidget(self.progress)
 
         # Charts
-        self.chart_temp = _SimplePlot("Temperaturas")
-        self.chart_v = _SimplePlot("Tensões")
+        self.chart_temp = _Chart("Temperaturas")
+        self.chart_v = _Chart("Tensões")
 
         root.addWidget(self.chart_temp, 1)
         root.addWidget(self.chart_v, 1)
@@ -591,22 +510,6 @@ class LogAnalysisWidget(QWidget):
 
         self._refresh_table()
         self._refresh_charts()
-        # Salvar PNGs usando os próprios widgets (thread da UI)
-        try:
-            outdir = Path(Path(csv_path).parent)
-            stem = Path(csv_path).stem  # mesmo nome do CSV
-
-            temp_png = outdir / f"{stem}_temperatures.png"
-            volt_png = outdir / f"{stem}_voltages.png"
-
-            self.chart_temp.save_png(str(temp_png))
-            self.chart_v.save_png(str(volt_png))
-
-            self._plot_paths = [str(temp_png), str(volt_png)]
-        except Exception:
-            # Não falha o fluxo principal por causa de export de imagem
-            self._plot_paths = []
-
 
     def _refresh_table(self, max_rows: int = 200):
         if self._df is None or self._df.empty:
@@ -635,27 +538,21 @@ class LogAnalysisWidget(QWidget):
         if self._df is None or self._df.empty:
             return
 
-        # X em segundos relativos (para plot simples)
-        x_dt = self._df["timestamp_dt"]
-        t0 = x_dt.iloc[0]
-        x_seconds = [(t - t0).total_seconds() for t in x_dt]
+        x = self._df["timestamp_dt"]
 
-        # Temperaturas
         temp_series = []
         if "T_STM32_C" in self._df.columns:
             temp_series.append((self._df["T_STM32_C"], "STM32 T (°C)"))
         if "T_FPGA_C" in self._df.columns:
             temp_series.append((self._df["T_FPGA_C"], "FPGA T (°C)"))
-        self.chart_temp.set_data(x_seconds, temp_series, ylabel="Temperature (°C)")
+        self.chart_temp.plot(x, temp_series, xlabel="Time", ylabel="Temperature (°C)")
 
-        # Tensões
         v_series = []
         if "Vc_STM32_V" in self._df.columns:
             v_series.append((self._df["Vc_STM32_V"], "STM32 Vc (V)"))
         if "VCCINT_FPGA_V" in self._df.columns:
             v_series.append((self._df["VCCINT_FPGA_V"], "FPGA VCCINT (V)"))
-        self.chart_v.set_data(x_seconds, v_series, ylabel="Voltage (V)")
-
+        self.chart_v.plot(x, v_series, xlabel="Time", ylabel="Voltage (V)")
 
     def _open_csv(self):
         if not self._csv_path:
