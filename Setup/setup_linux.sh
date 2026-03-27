@@ -24,11 +24,11 @@ fi
 source .venv/bin/activate
 pip install --upgrade pip
 
-if [ -f "App/requirements.txt" ]; then
+if [ -f "requirements.txt" ]; then
     echo "[INFO] Instalando dependencias..."
-    pip install -r App/requirements.txt
+    pip install -r requirements.txt
 else
-    echo "[AVISO] App/requirements.txt não encontrado."
+    echo "[AVISO] requirements.txt não encontrado."
 fi
 
 # Permissões de USB (Dialout) para o técnico não ter erro de permissão na Serial

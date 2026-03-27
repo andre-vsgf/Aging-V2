@@ -49,8 +49,12 @@ FPGAs exposed to ionizing radiation suffer timing degradation due to Total Ioniz
 ## Features
 
 ### 🎛️ Sensor Monitoring
-- 4 sensor buses: F, RF, UART, OBI
-- 32 bits per bus (128 sensors total)
+- **Legacy Mode**: 4 sensor buses (F, RF, UART, OBI) × 32 bits = 128 sensors total
+- **Multi-Bank Mode** ⭐ **NEW**: N dynamic TMR banks × 64 bits each
+  - 2 TMR banks by default (128 sensors total)
+  - Scalable to N banks without UI redesign
+  - 8×8 grid visualization per bank
+  - Scrollable interface for large sensor arrays
 - Real-time visualization with colored indicators
 - Selective filters by sensor type
 
@@ -89,9 +93,10 @@ Aging-V2/
 │   ├── aging_analysis_widget.py  # Aging analysis widget
 │   ├── experiment_controller.py  # Experiment controller
 │   ├── smart_logger.py           # Smart logging system
-│   ├── sensor_widget.py          # Sensor visualization
+│   ├── sensor_widget.py          # Sensor visualization (legacy + multi-bank)
+│   ├── multi_bank_types.py       # Multi-bank TMR data types ⭐ NEW
 │   ├── telemetry_widget.py       # Telemetry graphs
-│   ├── router.py                 # Serial communication router
+│   ├── router.py                 # Serial communication router (updated for $TMR protocol)
 │   ├── fpga_manager.py           # FPGA programming manager
 │   ├── protocol.py               # Communication protocol
 │   ├── config.py                 # Application configuration

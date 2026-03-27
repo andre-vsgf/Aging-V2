@@ -60,6 +60,38 @@ class DataSnapshot:
         ]
 
 
+@dataclass
+class DataSnapshotMultiBank:
+    """A single multi-bank TMR sensor data point snapshot."""
+    timestamp: datetime
+    banks_data: List[Dict]  # [{bank_id, alarm_vector, alarm_count, divergence_count}, ...]
+    fpga_temp: float
+    vccint: float
+    vcore: float
+    iout: float
+    
+    def to_dict(self) -> dict:
+        return {
+            'timestamp': self.timestamp.isoformat(),
+            'banks_data': self.banks_data,
+            'fpga_temp': self.fpga_temp,
+            'vccint': self.vccint,
+            'vcore': self.vcore,
+            'iout': self.iout,
+            'power': self.vcore * self.iout
+        }
+    
+    @property
+    def total_alarms(self) -> int:
+        """Total alarms across all banks."""
+        return sum(bank.get('alarm_count', 0) for bank in self.banks_data)
+    
+    @property
+    def total_divergences(self) -> int:
+        """Total divergences across all banks."""
+        return sum(bank.get('divergence_count', 0) for bank in self.banks_data)
+
+
 class SmartLogger:
     """
     Intelligent data logger with adaptive sampling and compression.
@@ -109,6 +141,13 @@ class SmartLogger:
         self._last_log_time: Optional[datetime] = None
         self._last_summary_time: Optional[datetime] = None
         self._last_alarms = (0, 0, 0, 0)
+        
+        # Multi-bank tracking
+        self._last_multi_bank_snapshot: Optional[DataSnapshotMultiBank] = None
+        self._last_multi_bank_alarms: Dict[int, int] = {}  # {bank_id: alarm_vector}
+        self._multi_bank_accumulator: List[DataSnapshotMultiBank] = []
+        self._multi_bank_data_file = None
+        self._multi_bank_data_writer = None
         
         # Accumulator for summaries
         self._accumulator: List[DataSnapshot] = []
@@ -165,6 +204,11 @@ class SmartLogger:
         
         # Initialize events list
         self._events: List[Dict] = []
+        
+        # Initialize multi-bank data file (CSV) - optional, created on demand
+        self._multi_bank_data_filepath = os.path.join(
+            self.log_folder, f"{base_name}_multi_bank_data.csv"
+        )
     
     def log_data(self, alarm_f: int, alarm_rf: int, 
                  alarm_uart: int = 0, alarm_obi: int = 0,
@@ -229,6 +273,148 @@ class SmartLogger:
         self._check_rotation()
         
         return should_log
+    
+    def log_multi_bank_data(self, banks_data: List[Dict], 
+                           fpga_temp: float = 0.0, vccint: float = 0.0,
+                           vcore: float = 0.0, iout: float = 0.0,
+                           force: bool = False) -> bool:
+        """
+        Log multi-bank TMR sensor data with smart filtering.
+        
+        Args:
+            banks_data: List of dicts with {bank_id, alarm_vector, alarm_count, divergence_count}
+            fpga_temp: FPGA temperature
+            vccint: VCCINT voltage
+            vcore: Core voltage
+            iout: Output current
+            force: Force logging regardless of mode
+            
+        Returns:
+            True if data was actually logged
+        """
+        now = datetime.now()
+        
+        # Create multi-bank snapshot
+        snapshot = DataSnapshotMultiBank(
+            timestamp=now,
+            banks_data=banks_data,
+            fpga_temp=fpga_temp,
+            vccint=vccint,
+            vcore=vcore,
+            iout=iout
+        )
+        
+        # Always add to accumulator for summaries
+        self._multi_bank_accumulator.append(snapshot)
+        
+        # Check if we should log based on mode
+        should_log = force
+        
+        if not should_log:
+            should_log = self._should_log_multi_bank(snapshot, now)
+        
+        if should_log:
+            self._write_multi_bank_data_row(snapshot)
+            self._last_multi_bank_snapshot = snapshot
+            self._last_log_time = now
+        
+        # Update alarm tracking for multi-bank
+        current_bank_alarms = {
+            bank.get('bank_id', 0): bank.get('alarm_vector', 0)
+            for bank in banks_data
+        }
+        if current_bank_alarms != self._last_multi_bank_alarms:
+            self._on_multi_bank_alarm_change(snapshot, self._last_multi_bank_alarms, current_bank_alarms)
+        self._last_multi_bank_alarms = current_bank_alarms
+        
+        # Check file rotation
+        self._check_rotation()
+        
+        return should_log
+    
+    def _should_log_multi_bank(self, snapshot: DataSnapshotMultiBank, now: datetime) -> bool:
+        """Determine if we should log multi-bank data based on mode."""
+        
+        if self._last_log_time is None:
+            return True  # Always log first entry
+        
+        elapsed = (now - self._last_log_time).total_seconds()
+        
+        if self.mode == "normal":
+            return elapsed >= self.normal_interval
+        
+        elif self.mode == "change":
+            # Check if any bank has new alarms
+            if self._last_multi_bank_snapshot:
+                return snapshot.total_alarms != self._last_multi_bank_snapshot.total_alarms
+            return True
+        
+        elif self.mode == "adaptive":
+            # During change period: log frequently
+            if self._in_change_period:
+                if elapsed >= self.change_interval:
+                    return True
+            # Otherwise: log at normal interval or on change
+            else:
+                if elapsed >= self.normal_interval:
+                    return True
+                if self._last_multi_bank_snapshot:
+                    if snapshot.total_alarms != self._last_multi_bank_snapshot.total_alarms:
+                        return True
+            return False
+        
+        else:  # "summary"
+            return elapsed >= self.summary_interval
+    
+    def _write_multi_bank_data_row(self, snapshot: DataSnapshotMultiBank):
+        """Write a multi-bank data row to CSV (lazy initialization)."""
+        if self._multi_bank_data_file is None:
+            # Initialize on first write
+            self._multi_bank_data_file = open(self._multi_bank_data_filepath, 'w', newline='', encoding='utf-8')
+            self._multi_bank_data_writer = csv.writer(self._multi_bank_data_file)
+            
+            # Write header with dynamic bank columns
+            max_banks = max(len(snapshot.banks_data), 2)  # At least 2 banks
+            header = ['timestamp', 'total_alarms', 'total_divergences', 'fpga_temp', 'vccint', 'vcore', 'iout', 'power']
+            for bank_id in range(max_banks):
+                header.extend([f'bank_{bank_id}_alarm', f'bank_{bank_id}_divergence'])
+            self._multi_bank_data_writer.writerow(header)
+        
+        # Write data row
+        row = [
+            snapshot.timestamp.isoformat(),
+            snapshot.total_alarms,
+            snapshot.total_divergences,
+            snapshot.fpga_temp,
+            snapshot.vccint,
+            snapshot.vcore,
+            snapshot.iout,
+            snapshot.vcore * snapshot.iout
+        ]
+        
+        # Add per-bank data
+        for bank_id in range(max(len(snapshot.banks_data), 2)):
+            if bank_id < len(snapshot.banks_data):
+                bank = snapshot.banks_data[bank_id]
+                row.append(bank.get('alarm_count', 0))
+                row.append(bank.get('divergence_count', 0))
+            else:
+                row.extend([0, 0])
+        
+        self._multi_bank_data_writer.writerow(row)
+        self._multi_bank_data_file.flush()
+    
+    def _on_multi_bank_alarm_change(self, snapshot: DataSnapshotMultiBank,
+                                   last_alarms: Dict[int, int],
+                                   current_alarms: Dict[int, int]):
+        """Called when multi-bank alarm state changes."""
+        event = {
+            'timestamp': snapshot.timestamp.isoformat(),
+            'type': 'multi_bank_alarm_change',
+            'total_alarms': snapshot.total_alarms,
+            'banks': snapshot.banks_data
+        }
+        self._events.append(event)
     
     def _should_log(self, snapshot: DataSnapshot, now: datetime) -> bool:
         """Determine if we should log based on mode."""

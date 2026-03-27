@@ -67,13 +67,15 @@ class TransitionEvent:
     to_bitstream: str
     from_phase: float
     to_phase: float
-    trigger_alarms: Dict[str, List[int]]  # {sensor_type: [bit_indices]}
+    trigger_alarms: Dict[str, List[int]]  # {sensor_type: [bit_indices]} - legacy 4-sensor mode
     total_alarms: int
     experiment_hours: float
     radiation_dose_krad: float = 0.0
     fpga_temp: float = 0.0
     vccint: float = 0.0
     notes: str = ""
+    is_multi_bank: bool = False
+    banks_state: List[Dict] = field(default_factory=list)  # [{'bank_id': 0, 'alarm_bits': [], ...}, ...]
     
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -213,9 +215,13 @@ class ExperimentController(QObject):
         self._last_alarm_uart = 0
         self._last_alarm_obi = 0
         
+        # Multi-bank tracking
+        self._last_banks_state = []  # List of SensorBank objects
+        
         # Pending alarm info (captured when alarm detected)
         self._pending_trigger_alarms: Dict[str, List[int]] = {}
         self._pending_total_alarms = 0
+        self._pending_banks_state = []  # For multi-bank mode
         
         # Environmental data
         self._fpga_temp = 0.0
@@ -639,6 +645,83 @@ class ExperimentController(QObject):
         if vccint is not None:
             self._vccint = vccint
     
+    def process_alarms_multi_bank(self, banks_data: list):
+        """
+        Process incoming multi-bank TMR sensor data.
+        
+        Triggers on ANY active alarm from any enabled bank.
+        After cooldown, if any alarm is still active, triggers transition.
+        
+        Args:
+            banks_data: List of bank dicts or SensorBank objects with alarm_vector info
+        """
+        # Skip if not in running state
+        if self._state != ExperimentState.RUNNING:
+            self._last_banks_state = banks_data
+            return
+        
+        if not self._auto_program_enabled:
+            self._last_banks_state = banks_data
+            return
+        
+        # Check for ANY active alarms across all banks
+        has_active_alarms = False
+        total_bank_alarms = 0
+        active_banks_list = []
+        
+        for bank_data in banks_data:
+            # Extract alarm vector (handle both dict and object formats)
+            if isinstance(bank_data, dict):
+                bank_id = bank_data.get('bank_id', 0)
+                alarm_vector = bank_data.get('alarm_vector', 0)
+            else:
+                # Assume it's a SensorBank-like object
+                bank_id = getattr(bank_data, 'bank_id', 0)
+                alarm_vector = getattr(bank_data, 'alarm_vector', 0)
+            
+            # Count alarms in this bank
+            bank_alarm_count = bin(alarm_vector).count('1')
+            total_bank_alarms += bank_alarm_count
+            
+            if alarm_vector != 0:
+                has_active_alarms = True
+                # Get indices of active bits
+                active_bits = [i for i in range(64) if alarm_vector & (1 << i)]
+                active_banks_list.append({
+                    'bank_id': bank_id,
+                    'alarm_vector': hex(alarm_vector) if not isinstance(alarm_vector, str) else alarm_vector,
+                    'alarm_bits': active_bits,
+                    'alarm_count': bank_alarm_count
+                })
+        
+        if has_active_alarms:
+            # Capture banks state for logging
+            self._pending_banks_state = active_banks_list
+            self._pending_total_alarms = total_bank_alarms
+            
+            # For backward compat, also populate legacy trigger_alarms
+            # Map banks to sensor types if needed (or use 'bank_X' naming)
+            self._pending_trigger_alarms = {}
+            for bank_info in active_banks_list:
+                bank_id = bank_info['bank_id']
+                self._pending_trigger_alarms[f'bank_{bank_id}'] = bank_info['alarm_bits']
+            
+            # Log the trigger
+            trigger_summary = []
+            for bank_info in active_banks_list:
+                trigger_summary.append(f"Bank{bank_info['bank_id']}:{bank_info['alarm_bits']}")
+            
+            self.log_message.emit(
+                f"⚠️ MULTI-BANK ALARMS DETECTED: {', '.join(trigger_summary)}"
+            )
+            
+            # Start stabilization timer
+            self._set_state(ExperimentState.ALARM_DETECTED)
+            self._stabilization_timer.start(self._stabilization_time_ms)
+        
+        # Update tracking
+        self._last_banks_state = banks_data
+    
     # =========================================================================
     # Timer Callbacks
     # =========================================================================
@@ -671,7 +754,9 @@ class ExperimentController(QObject):
             experiment_hours=self.experiment_hours,
             radiation_dose_krad=self.current_dose_krad,
             fpga_temp=self._fpga_temp,
-            vccint=self._vccint
+            vccint=self._vccint,
+            is_multi_bank=len(self._pending_banks_state) > 0,
+            banks_state=self._pending_banks_state.copy() if self._pending_banks_state else []
         )
         
         self._transitions.append(transition)

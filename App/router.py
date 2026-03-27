@@ -44,6 +44,7 @@ class UARTRouter(QObject):
     aging_data_received = Signal(dict)
     telemetry_received = Signal(dict)
     raw_data_received = Signal(bytes)
+    multi_bank_data_received = Signal(list)  # NEW: Multi-bank TMR sensor data
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -114,6 +115,15 @@ class UARTRouter(QObject):
             r'\$SYS,FT,([0-9A-Fa-f]{1,4}),VI,([0-9A-Fa-f]{1,4}),'
             r'AF,([0-9A-Fa-f]{1,8}),AR,([0-9A-Fa-f]{1,8}),'
             r'AU,([0-9A-Fa-f]{1,8}),AO,([0-9A-Fa-f]{1,8})\*([0-9A-Fa-f]{2})',
+            re.IGNORECASE
+        )
+        
+        # Pattern 5: Multi-bank TMR format - NEW
+        # "$TMR,BANK0_AL_HEX,BANK0_DIV_HEX,BANK1_AL_HEX,BANK1_DIV_HEX,...*CS"
+        # Each bank has 2 values: alarm_vector (64-bit) and divergence_vector (64-bit)
+        # Example: $TMR,0000000000000000,0000000000000000,0000000000000001,0000000000000000*XX
+        self._tmr_bank_regex = re.compile(
+            r'\$TMR,([0-9A-Fa-f]+(?:,[0-9A-Fa-f]+)*)\*([0-9A-Fa-f]{2})',
             re.IGNORECASE
         )
         
@@ -416,6 +426,45 @@ class UARTRouter(QObject):
                 return
             except ValueError:
                 pass
+        
+        # =====================================================================
+        # 3.5. Check for Multi-Bank TMR format (NEW)
+        # "$TMR,BANK0_AL_HEX,BANK0_DIV_HEX,BANK1_AL_HEX,BANK1_DIV_HEX,...*CS"
+        # =====================================================================
+        tmr_match = self._tmr_bank_regex.search(line_str)
+        if tmr_match:
+            try:
+                from multi_bank_types import SensorBank
+                
+                bank_values = tmr_match.group(1).split(',')
+                banks = []
+                
+                # Parse pairs of values: (alarm_vector, divergence_vector) per bank
+                for bank_id in range(len(bank_values) // 2):
+                    alarm_idx = bank_id * 2
+                    div_idx = bank_id * 2 + 1
+                    
+                    if alarm_idx < len(bank_values) and div_idx < len(bank_values):
+                        alarm_vector = int(bank_values[alarm_idx], 16)
+                        divergence_vector = int(bank_values[div_idx], 16)
+                        
+                        bank = SensorBank(
+                            bank_id=bank_id,
+                            alarm_vector=alarm_vector,
+                            divergence_vector=divergence_vector
+                        )
+                        banks.append(bank.to_dict())
+                
+                # Emit multi-bank signal
+                self.multi_bank_data_received.emit(banks)
+                
+                self.log_text_received.emit(
+                    f"[TMR] {len(banks)} banks received"
+                )
+                return
+            except Exception as e:
+                self.log_text_received.emit(f"[ERROR] Failed to parse $TMR: {e}")
+        
         # =====================================================================
         # 4. Legacy 2-sensor format (DEPRECATED)
         # We intentionally do not parse "F: 0x.. | RF: 0x.." anymore. This prevents

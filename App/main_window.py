@@ -44,6 +44,8 @@ from protocol import (
 # NEW: Import smart logging and experiment controller
 from smart_logger import SmartLogger
 from aging_analysis_widget_v2 import AgingAnalysisWidgetV2
+from experiment_controller import ExperimentController
+from multi_bank_types import SensorBank
 
 
 class MainWindow(QMainWindow):
@@ -65,6 +67,12 @@ class MainWindow(QMainWindow):
         self._last_alarm_uart = 0
         self._last_alarm_obi_dmx = 0
         
+        # Cached environmental data for multi-bank logging
+        self._cached_fpga_temp = 0.0
+        self._cached_vccint = 0.0
+        self._cached_vcore = 0.0
+        self._cached_iout = 0.0
+        
         # Track last programmed bitstream
         self._last_programmed_bitstream = ""
         
@@ -73,6 +81,9 @@ class MainWindow(QMainWindow):
         
         # Initialize Smart Logger for efficient long-term logging
         self._init_smart_logger()
+        
+        # Initialize Experiment Controller for auto-program on alarms
+        self.experiment_controller = ExperimentController(parent=self)
         
         # Build UI
         self._init_ui()
@@ -157,7 +168,9 @@ class MainWindow(QMainWindow):
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         
-        self.sensor_widget = SensorVisualizationWidget()
+        # MULTI-BANK MODE: Initialize with 2 64-bit TMR banks
+        # Change num_banks=0 to go back to legacy 4-register mode
+        self.sensor_widget = SensorVisualizationWidget(num_banks=2)
         left_layout.addWidget(self.sensor_widget)
         
         # Control tabs below sensors
@@ -628,6 +641,7 @@ class MainWindow(QMainWindow):
         self.router.log_message.connect(self.log)
         self.router.log_text_received.connect(self.log)
         self.router.aging_data_received.connect(self._on_sensor_data)
+        self.router.multi_bank_data_received.connect(self._on_multi_bank_data)  # NEW: Multi-bank support
         self.router.stm_frame_received.connect(self._on_stm_frame)
         self.router.telemetry_received.connect(self._on_telemetry_data)
         
@@ -784,6 +798,67 @@ class MainWindow(QMainWindow):
         self._last_alarm_rf = alarm_rf
         self._last_alarm_uart = alarm_uart
         self._last_alarm_obi_dmx = alarm_obi_dmx
+        
+        # Cache environmental data for multi-bank logging
+        self._cached_fpga_temp = fpga_temp
+        self._cached_vccint = vccint
+        self._cached_vcore = vcore
+        self._cached_iout = iout
+
+    @Slot(list)
+    def _on_multi_bank_data(self, banks_data: list):
+        """Handle incoming multi-bank TMR sensor data."""
+        # Update multi-bank widget
+        self.sensor_widget.updateMultiBankData(banks_data)
+        
+        # Process alarms across all banks for experiment controller
+        if self.experiment_controller:
+            self.experiment_controller.process_alarms_multi_bank(banks_data)
+        
+        # Prepare bank data for logging with alarm/divergence counts
+        banks_for_logging = []
+        total_alarms = 0
+        total_divergences = 0
+        
+        for bank_data in banks_data:
+            if isinstance(bank_data, dict):
+                bank_id = bank_data.get('bank_id', 0)
+                alarm_vector = bank_data.get('alarm_vector', 0)
+                divergence_vector = bank_data.get('divergence_vector', 0)
+            else:
+                # Handle SensorBank-like objects
+                bank_id = getattr(bank_data, 'bank_id', 0)
+                alarm_vector = getattr(bank_data, 'alarm_vector', 0)
+                divergence_vector = getattr(bank_data, 'divergence_vector', 0)
+            
+            alarm_count = bin(alarm_vector).count('1')
+            divergence_count = bin(divergence_vector).count('1')
+            total_alarms += alarm_count
+            total_divergences += divergence_count
+            
+            banks_for_logging.append({
+                'bank_id': bank_id,
+                'alarm_vector': hex(alarm_vector) if not isinstance(alarm_vector, str) else alarm_vector,
+                'alarm_count': alarm_count,
+                'divergence_count': divergence_count
+            })
+        
+        # Get current environmental data (use cached values from last sensor update)
+        # These would be updated via telemetry or _on_sensor_data
+        fpga_temp = getattr(self, '_cached_fpga_temp', 0.0)
+        vccint = getattr(self, '_cached_vccint', 0.0)
+        vcore = getattr(self, '_cached_vcore', 0.0)
+        iout = getattr(self, '_cached_iout', 0.0)
+        
+        # Log to SmartLogger (will filter based on mode)
+        if self.smart_logger:
+            self.smart_logger.log_multi_bank_data(
+                banks_data=banks_for_logging,
+                fpga_temp=fpga_temp,
+                vccint=vccint,
+                vcore=vcore,
+                iout=iout
+            )
 
     @Slot(object)
     def _on_stm_frame(self, event):

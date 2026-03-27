@@ -15,10 +15,18 @@ FIXES:
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, 
-    QLabel, QFrame, QGroupBox, QSizePolicy
+    QLabel, QFrame, QGroupBox, QSizePolicy, QScrollArea, QScrollBar
 )
-from PySide6.QtCore import Qt, Signal, Slot, QSize
+from PySide6.QtCore import Qt, Signal, Slot, QSize, QTimer
 from PySide6.QtGui import QColor, QPainter, QBrush, QPen, QFont
+from enum import Enum, auto
+
+
+class SensorCellState(Enum):
+    """Three-state sensor cell visual state."""
+    NORMAL = auto()       # Green - no alarm or divergence
+    DIVERGENCE = auto()   # Yellow - transient divergence (500ms timeout)
+    ALARM = auto()        # Red - persistent alarm condition
 
 
 class SensorCell(QWidget):
@@ -32,6 +40,11 @@ class SensorCell(QWidget):
         self.index = index
         self.active = False
         self.enabled = True
+        self.state = SensorCellState.NORMAL
+        self.divergence_timeout_ms = 500
+        self.divergence_timer = QTimer(self)
+        self.divergence_timer.setSingleShot(True)
+        self.divergence_timer.timeout.connect(self._on_divergence_timeout)
         self.setMinimumSize(20, 20)
         self.setMaximumSize(30, 30)
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -49,6 +62,39 @@ class SensorCell(QWidget):
             self.enabled = enabled
             self.update()
     
+    def setState(self, alarm: bool, divergence: bool):
+        """
+        Set cell state with 3-state logic.
+        Priority: alarm > divergence > normal
+        
+        Args:
+            alarm: True if persistent alarm condition
+            divergence: True if transient divergence
+        """
+        # Stop any existing divergence timeout
+        if self.divergence_timer.isActive():
+            self.divergence_timer.stop()
+        
+        # Priority: alarm takes precedence
+        if alarm:
+            new_state = SensorCellState.ALARM
+        elif divergence:
+            new_state = SensorCellState.DIVERGENCE
+            # Auto-timeout divergence back to normal after 500ms
+            self.divergence_timer.start(self.divergence_timeout_ms)
+        else:
+            new_state = SensorCellState.NORMAL
+        
+        if self.state != new_state:
+            self.state = new_state
+            self.update()
+    
+    def _on_divergence_timeout(self):
+        """Called when divergence timeout expires - return to normal state."""
+        if self.state == SensorCellState.DIVERGENCE:
+            self.state = SensorCellState.NORMAL
+            self.update()
+    
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
@@ -57,12 +103,15 @@ class SensorCell(QWidget):
         pen.setWidth(1)
         painter.setPen(pen)
         
+        # Select color based on 3-state logic
         if not self.enabled:
-            brush = QBrush(QColor(60, 60, 60))  # Dark gray
-        elif self.active:
-            brush = QBrush(QColor(220, 53, 69))  # Red
+            brush = QBrush(QColor(60, 60, 60))  # Dark gray - disabled
+        elif self.state == SensorCellState.ALARM:
+            brush = QBrush(QColor(220, 53, 69))  # Red - persistent alarm
+        elif self.state == SensorCellState.DIVERGENCE:
+            brush = QBrush(QColor(255, 193, 7))  # Amber/Yellow - transient divergence
         else:
-            brush = QBrush(QColor(40, 167, 69))  # Green
+            brush = QBrush(QColor(40, 167, 69))  # Green - normal
         
         painter.setBrush(brush)
         
@@ -75,6 +124,77 @@ class SensorCell(QWidget):
         )
         
         painter.end()
+
+
+class SensorBankWidget(QWidget):
+    """
+    Displays a 64-bit TMR sensor bank as an 8x8 grid.
+    Shows alarm_vector as red, divergence_vector as yellow.
+    """
+    
+    def __init__(self, bank_id: int, parent=None):
+        super().__init__(parent)
+        self.bank_id = bank_id
+        self.cells = []
+        self.alarm_vector = 0
+        self.divergence_vector = 0
+        self._setup_ui()
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+        
+        # Header with bank title and counts
+        header_layout = QHBoxLayout()
+        self.title_label = QLabel(f"Bank {self.bank_id}")
+        self.title_label.setAlignment(Qt.AlignLeft)
+        self.title_label.setStyleSheet("font-weight: bold; font-size: 12pt;")
+        header_layout.addWidget(self.title_label)
+        
+        self.counts_label = QLabel("Alarms: 0 | Divergence: 0")
+        self.counts_label.setAlignment(Qt.AlignRight)
+        self.counts_label.setStyleSheet("color: #888; font-size: 10pt;")
+        header_layout.addWidget(self.counts_label)
+        
+        layout.addLayout(header_layout)
+        
+        # 8x8 grid of sensor cells (64 bits)
+        grid_widget = QWidget()
+        grid = QGridLayout(grid_widget)
+        grid.setSpacing(1)
+        grid.setContentsMargins(2, 2, 2, 2)
+        
+        for bit_idx in range(64):
+            row = bit_idx // 8
+            col = bit_idx % 8
+            
+            cell = SensorCell(bit_idx)
+            cell.setMinimumSize(18, 18)
+            cell.setMaximumSize(24, 24)
+            self.cells.append(cell)
+            grid.addWidget(cell, row, col)
+        
+        layout.addWidget(grid_widget)
+    
+    def setBankData(self, alarm_vector: int, divergence_vector: int):
+        """Update bank with alarm and divergence vectors."""
+        self.alarm_vector = alarm_vector & ((1 << 64) - 1)
+        self.divergence_vector = divergence_vector & ((1 << 64) - 1)
+        
+        alarm_count = bin(self.alarm_vector).count('1')
+        div_count = bin(self.divergence_vector).count('1')
+        
+        # Update counts label
+        self.counts_label.setText(f"Alarms: {alarm_count} | Divergence: {div_count}")
+        
+        # Update cell colors: alarm=red (priority), divergence=yellow, else=green
+        for i, cell in enumerate(self.cells):
+            alarm = bool(self.alarm_vector & (1 << i))
+            divergence = bool(self.divergence_vector & (1 << i))
+            
+            # Set cell 3-state: alarm (red) > divergence (yellow) > normal (green)
+            cell.setState(alarm, divergence)
 
 
 class SensorRegisterWidget(QWidget):
@@ -193,18 +313,38 @@ class SensorRegisterWidget(QWidget):
 
 class SensorVisualizationWidget(QWidget):
     """
-    Main widget displaying all 4 aging sensor registers:
-    - ALARM_F (AM sensors)
-    - ALARM_RF (LF sensors) 
-    - ALARM_UART (UART sensors) - RENAMED from DM
-    - ALARM_OBI_DMX (OBI Demux sensors)
+    Main widget for sensor visualization. Supports two modes:
+    
+    1. LEGACY MODE (num_banks=0, default):
+       - Displays 4 aging sensor registers (32-bit each) in 2x2 grid
+       - Sensors: ALARM_F, ALARM_RF, ALARM_UART, ALARM_OBI_DMX
+    
+    2. MULTI-BANK MODE (num_banks > 0):
+       - Displays N banks of 64-bit TMR sensors
+       - Each bank renders as 8x8 grid in scrollable view
+       - Example: num_banks=2 creates 2 independent 8x8 grids
     """
     
     data_updated = Signal(dict)  # Emits complete sensor data
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, num_banks: int = 0):
+        """
+        Initialize sensor visualization widget.
+        
+        Args:
+            parent: Parent widget
+            num_banks: Number of 64-bit banks to display (0 = legacy 4-register mode)
+        """
         super().__init__(parent)
-        self._setup_ui()
+        self._num_banks = num_banks
+        self._legacy_mode = (num_banks == 0)
+        
+        if self._legacy_mode:
+            # Legacy: 4 registers in 2x2 grid
+            self._setup_ui()
+        else:
+            # Multi-bank: scrollable N banks of 8x8 grids
+            self.setupMultiBankDisplay(num_banks)
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -267,12 +407,17 @@ class SensorVisualizationWidget(QWidget):
     @Slot(dict)
     def updateFromDict(self, data: dict):
         """
-        Update all sensor registers from a dictionary.
+        Update all sensor registers from a dictionary (legacy mode only).
         
         Accepts BOTH naming conventions:
         - New names: alarm_uart, alarm_obi_dmx
         - Old names: alarm_dm, alarm_obi (for backwards compatibility)
+        
+        In multi-bank mode, use updateMultiBankData() instead.
         """
+        if not self._legacy_mode:
+            return
+        
         alarm_f = data.get('alarm_f', 0)
         alarm_rf = data.get('alarm_rf', 0)
         
@@ -287,6 +432,10 @@ class SensorVisualizationWidget(QWidget):
     def updateSensorData(self, alarm_f: int, alarm_rf: int, 
                          alarm_uart: int = 0, alarm_obi: int = 0):
         """Update all sensor registers with new values."""
+        # Only works in legacy mode
+        if not self._legacy_mode:
+            return
+        
         # Update primary sensors
         self.alarm_f_widget.setValue(alarm_f)
         self.alarm_rf_widget.setValue(alarm_rf)
@@ -367,12 +516,16 @@ class SensorVisualizationWidget(QWidget):
     
     def enableSensor(self, sensor_name: str, enabled: bool):
         """
-        Enable/disable a specific sensor register.
+        Enable/disable a specific sensor register (legacy mode only).
+        Has no effect in multi-bank mode.
         
         Args:
             sensor_name: "uart", "obi_dmx", "f", or "rf"
             enabled: True to enable, False to disable (gray out)
         """
+        if not self._legacy_mode:
+            return
+        
         name = sensor_name.lower()
         
         if name in ["uart", "alarm_uart", "dm", "alarm_dm"]:
@@ -385,10 +538,80 @@ class SensorVisualizationWidget(QWidget):
             self.alarm_rf_widget.setRegisterEnabled(enabled)
     
     def getAlarmCounts(self) -> dict:
-        """Return current alarm counts."""
+        """Return current alarm counts (legacy mode only). Returns empty dict in multi-bank mode."""
+        if not self._legacy_mode:
+            return {}
+        
         return {
             'f': bin(self.alarm_f_widget.getValue()).count('1'),
             'rf': bin(self.alarm_rf_widget.getValue()).count('1'),
             'uart': bin(self.alarm_uart_widget.getValue()).count('1'),
             'obi_dmx': bin(self.alarm_obi_widget.getValue()).count('1'),
         }
+    
+    def setupMultiBankDisplay(self, num_banks: int = 2):
+        """
+        Setup scrollable multi-bank display.
+        Called once during initialization if using multi-bank mode.
+        """
+        # Clear existing layout if this is a re-setup
+        if hasattr(self, '_bank_widgets'):
+            for i, widget in enumerate(self._bank_widgets):
+                widget.deleteLater()
+        
+        # Create scrollable area for banks
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Container for all bank widgets
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(5, 5, 5, 5)
+        container_layout.setSpacing(10)
+        
+        # Create bank widgets
+        self._bank_widgets = []
+        for bank_id in range(num_banks):
+            bank_widget = SensorBankWidget(bank_id=bank_id)
+            self._bank_widgets.append(bank_widget)
+            container_layout.addWidget(bank_widget)
+        
+        container_layout.addStretch()
+        scroll_area.setWidget(container)
+        
+        # Replace the main layout with the scrollable view
+        old_layout = self.layout()
+        if old_layout:
+            for i in reversed(range(old_layout.count())):
+                old_layout.itemAt(i).widget().deleteLater()
+        
+        new_layout = QVBoxLayout(self)
+        new_layout.setContentsMargins(10, 10, 10, 10)
+        
+        title = QLabel("Multi-Bank TMR Sensor Status")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 14pt; font-weight: bold; margin-bottom: 10px;")
+        new_layout.addWidget(title)
+        
+        new_layout.addWidget(scroll_area)
+        
+        # Store banks for later reference
+        self._num_banks = num_banks
+    
+    @Slot(list)
+    def updateMultiBankData(self, banks_data: list):
+        """
+        Update multi-bank display from list of bank dicts.
+        Expects list of dicts like: [{'alarm_vector': int, 'divergence_vector': int}, ...]
+        """
+        if not hasattr(self, '_bank_widgets'):
+            # Initialize multi-bank display if not already done
+            self.setupMultiBankDisplay(len(banks_data))
+        
+        for i, bank_dict in enumerate(banks_data):
+            if i < len(self._bank_widgets):
+                alarm_vector = bank_dict.get('alarm_vector', 0)
+                divergence_vector = bank_dict.get('divergence_vector', 0)
+                self._bank_widgets[i].setBankData(alarm_vector, divergence_vector)
